@@ -1,22 +1,31 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Rover Control API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: rover
+    description: Rover drive controls
+  - name: sensors
+    description: Sensor readings
+  - name: arm
+    description: Robotic arm control
+  - name: autonomous
+    description: Autonomous mode
+  - name: camera
+    description: Camera feed
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +33,394 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /rover/status:
+    get:
+      operationId: getRoverStatus
+      tags: [rover]
+      summary: Get current rover status
+      responses:
+        "200":
+          description: Rover status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoverStatus"
+
+  /rover/command:
+    post:
+      operationId: sendRoverCommand
+      tags: [rover]
+      summary: Send drive command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoverCommandInput"
+      responses:
+        "200":
+          description: Command accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /rover/stop:
+    post:
+      operationId: stopRover
+      tags: [rover]
+      summary: Emergency stop
+      responses:
+        "200":
+          description: Rover stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /sensors:
+    get:
+      operationId: getSensorReadings
+      tags: [sensors]
+      summary: Get all sensor readings
+      responses:
+        "200":
+          description: All sensor readings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensorData"
+
+  /sensors/lidar:
+    get:
+      operationId: getLidarData
+      tags: [sensors]
+      summary: Get LIDAR point cloud data
+      responses:
+        "200":
+          description: LIDAR scan data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LidarScan"
+
+  /arm/status:
+    get:
+      operationId: getArmStatus
+      tags: [arm]
+      summary: Get current arm axis positions
+      responses:
+        "200":
+          description: Arm status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArmStatus"
+
+  /arm/command:
+    post:
+      operationId: sendArmCommand
+      tags: [arm]
+      summary: Send arm axis command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArmCommandInput"
+      responses:
+        "200":
+          description: Arm command accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /arm/home:
+    post:
+      operationId: homeArm
+      tags: [arm]
+      summary: Return arm to home position
+      responses:
+        "200":
+          description: Arm homing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /autonomous/status:
+    get:
+      operationId: getAutonomousStatus
+      tags: [autonomous]
+      summary: Get autonomous mode status
+      responses:
+        "200":
+          description: Autonomous status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutonomousStatus"
+
+  /autonomous/toggle:
+    post:
+      operationId: toggleAutonomousMode
+      tags: [autonomous]
+      summary: Enable or disable autonomous mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutonomousToggleInput"
+      responses:
+        "200":
+          description: Autonomous mode updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutonomousStatus"
+
+  /camera/info:
+    get:
+      operationId: getCameraInfo
+      tags: [camera]
+      summary: Get camera feed info and stream URL
+      responses:
+        "200":
+          description: Camera info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CameraInfo"
+
+  /telemetry:
+    get:
+      operationId: getTelemetry
+      tags: [rover]
+      summary: Get full telemetry snapshot (rover + sensors + arm)
+      responses:
+        "200":
+          description: Full telemetry snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetrySnapshot"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    RoverStatus:
+      type: object
+      required: [connected, speed, direction, batteryLevel, motorTemperature, wheelCount]
+      properties:
+        connected:
+          type: boolean
+        speed:
+          type: number
+          description: Speed in m/s
+        direction:
+          type: string
+          enum: [forward, backward, left, right, stopped]
+        batteryLevel:
+          type: number
+          description: Battery percentage 0-100
+        motorTemperature:
+          type: number
+          description: Motor temperature in Celsius
+        wheelCount:
+          type: integer
+          description: Number of wheels (4 or 6)
+
+    RoverCommandInput:
+      type: object
+      required: [command]
+      properties:
+        command:
+          type: string
+          enum: [forward, backward, left, right, stop]
+        speed:
+          type: number
+          description: Speed 0-100
+        duration:
+          type: ["integer", "null"]
+          description: Duration in ms, null for continuous
+
+    CommandResult:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+
+    SensorData:
+      type: object
+      required: [ultrasonic, infrared, timestamp]
+      properties:
+        ultrasonic:
+          type: array
+          items:
+            $ref: "#/components/schemas/UltrasonicReading"
+        infrared:
+          type: array
+          items:
+            $ref: "#/components/schemas/InfraredReading"
+        timestamp:
+          type: string
+
+    UltrasonicReading:
+      type: object
+      required: [id, label, distanceCm, triggered]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        distanceCm:
+          type: number
+        triggered:
+          type: boolean
+
+    InfraredReading:
+      type: object
+      required: [id, label, detected, rawValue]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        detected:
+          type: boolean
+        rawValue:
+          type: number
+
+    LidarScan:
+      type: object
+      required: [points, timestamp]
+      properties:
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/LidarPoint"
+        timestamp:
+          type: string
+
+    LidarPoint:
+      type: object
+      required: [angle, distanceMm, quality]
+      properties:
+        angle:
+          type: number
+          description: Angle in degrees 0-360
+        distanceMm:
+          type: number
+          description: Distance in millimeters
+        quality:
+          type: integer
+          description: Signal quality 0-255
+
+    ArmStatus:
+      type: object
+      required: [axes, gripping, moving]
+      properties:
+        axes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArmAxis"
+        gripping:
+          type: boolean
+        moving:
+          type: boolean
+
+    ArmAxis:
+      type: object
+      required: [id, label, angleDeg, minDeg, maxDeg]
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        angleDeg:
+          type: number
+        minDeg:
+          type: number
+        maxDeg:
+          type: number
+
+    ArmCommandInput:
+      type: object
+      required: [axes]
+      properties:
+        axes:
+          type: array
+          items:
+            type: object
+            required: [id, angleDeg]
+            properties:
+              id:
+                type: integer
+              angleDeg:
+                type: number
+        grip:
+          type: ["boolean", "null"]
+
+    AutonomousStatus:
+      type: object
+      required: [enabled, mode, obstacleAvoidance, pathPlanning]
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [idle, exploring, homing, following, patrolling]
+        obstacleAvoidance:
+          type: boolean
+        pathPlanning:
+          type: boolean
+
+    AutonomousToggleInput:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        mode:
+          type: string
+          enum: [exploring, homing, following, patrolling]
+
+    CameraInfo:
+      type: object
+      required: [streamUrl, resolution, fps, connected]
+      properties:
+        streamUrl:
+          type: string
+        resolution:
+          type: string
+        fps:
+          type: integer
+        connected:
+          type: boolean
+
+    TelemetrySnapshot:
+      type: object
+      required: [rover, sensors, arm, autonomous, timestamp]
+      properties:
+        rover:
+          $ref: "#/components/schemas/RoverStatus"
+        sensors:
+          $ref: "#/components/schemas/SensorData"
+        arm:
+          $ref: "#/components/schemas/ArmStatus"
+        autonomous:
+          $ref: "#/components/schemas/AutonomousStatus"
+        timestamp:
+          type: string

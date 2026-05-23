@@ -5,7 +5,9 @@
  * Rover Control API
  * OpenAPI spec version: 0.1.0
  */
+import type { LidarPoint } from './lidarPoint';
 
-export interface HealthStatus {
-  status: string;
+export interface LidarScan {
+  points: LidarPoint[];
+  timestamp: string;
 }
