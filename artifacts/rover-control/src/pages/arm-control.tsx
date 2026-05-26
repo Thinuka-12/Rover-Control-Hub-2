@@ -8,7 +8,7 @@ import { RotateCcw, Grab, PowerOff } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 export default function ArmControl() {
-  const { data: armStatus } = useGetArmStatus({ query: { refetchInterval: 1000 } });
+  const { data: armStatus } = useGetArmStatus({ query: { refetchInterval: 1000 } as never });
   const sendCommand = useSendArmCommand();
   const homeArm = useHomeArm();
 

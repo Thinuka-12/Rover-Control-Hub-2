@@ -11,7 +11,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.add('dark');
   }, []);
 
-  const telemetry = useGetTelemetry({ query: { refetchInterval: 500 } });
+  const telemetry = useGetTelemetry({ query: { refetchInterval: 500 } as never });
   const isConnected = telemetry.data?.rover?.connected ?? false;
 
   return (
