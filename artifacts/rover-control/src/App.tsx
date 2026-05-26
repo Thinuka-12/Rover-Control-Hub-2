@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import MainControl from "@/pages/main-control";
 import ArmControl from "@/pages/arm-control";
 import Settings from "@/pages/settings";
+import MapPage from "@/pages/map";
 
 const queryClient = new QueryClient();
 
@@ -14,6 +15,7 @@ function Router() {
     <Switch>
       <Route path="/" component={MainControl} />
       <Route path="/arm" component={ArmControl} />
+      <Route path="/map" component={MapPage} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

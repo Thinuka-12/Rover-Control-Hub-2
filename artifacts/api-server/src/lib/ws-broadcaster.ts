@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { IncomingMessage, Server } from "http";
 import { logger } from "./logger";
+import { tickPosition } from "../routes/map";
 
 interface LidarPoint {
   angle: number;
@@ -66,7 +67,6 @@ export function attachWebSocketServer(httpServer: Server) {
       try {
         const msg = JSON.parse(raw.toString()) as { type: string; payload?: unknown };
         logger.info({ type: msg.type }, "WS message from client");
-        // Echo ack
         ws.send(JSON.stringify({ type: "ack", payload: msg.type }));
       } catch {
         // ignore malformed
@@ -78,12 +78,21 @@ export function attachWebSocketServer(httpServer: Server) {
     });
   });
 
-  // Broadcast telemetry at 500ms
+  function broadcast(data: string) {
+    for (const client of wss.clients) {
+      if (client.readyState === WebSocket.OPEN) client.send(data);
+    }
+  }
+
+  // Broadcast telemetry + position at 500ms
   const telemetryInterval = setInterval(() => {
     if (wss.clients.size === 0) return;
     batteryLevel = Math.max(0, batteryLevel - 0.001);
 
-    const payload = JSON.stringify({
+    // Advance position simulation
+    const pos = tickPosition();
+
+    broadcast(JSON.stringify({
       type: "telemetry",
       payload: {
         rover: {
@@ -107,27 +116,27 @@ export function attachWebSocketServer(httpServer: Server) {
         },
         timestamp: new Date().toISOString(),
       },
-    });
+    }));
 
-    for (const client of wss.clients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
-      }
-    }
+    // Broadcast position update
+    broadcast(JSON.stringify({
+      type: "position",
+      payload: {
+        x: Math.round(pos.x * 100) / 100,
+        y: Math.round(pos.y * 100) / 100,
+        headingDeg: Math.round(pos.headingDeg * 10) / 10,
+        timestamp: new Date().toISOString(),
+      },
+    }));
   }, 500);
 
   // Broadcast LIDAR at 1000ms
   const lidarInterval = setInterval(() => {
     if (wss.clients.size === 0) return;
-    const payload = JSON.stringify({
+    broadcast(JSON.stringify({
       type: "lidar",
       payload: { points: generateLidar(), timestamp: new Date().toISOString() },
-    });
-    for (const client of wss.clients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(payload);
-      }
-    }
+    }));
   }, 1000);
 
   wss.on("close", () => {

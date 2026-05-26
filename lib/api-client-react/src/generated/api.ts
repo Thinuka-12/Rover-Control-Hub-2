@@ -28,10 +28,14 @@ import type {
   CommandResult,
   HealthStatus,
   LidarScan,
+  MapRecordingInput,
+  MapState,
   RoverCommandInput,
   RoverStatus,
   SensorData,
-  TelemetrySnapshot
+  TelemetrySnapshot,
+  Waypoint,
+  WaypointInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1014,4 +1018,293 @@ export function useGetTelemetry<TData = Awaited<ReturnType<typeof getTelemetry>>
 
 
 
+
+export const getGetMapStateUrl = () => {
+
+
+
+
+  return `/api/map/state`
+}
+
+/**
+ * @summary Get current position, path, and recording status
+ */
+export const getMapState = async ( options?: RequestInit): Promise<MapState> => {
+
+  return customFetch<MapState>(getGetMapStateUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMapStateQueryKey = () => {
+    return [
+    `/api/map/state`
+    ] as const;
+    }
+
+
+export const getGetMapStateQueryOptions = <TData = Awaited<ReturnType<typeof getMapState>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMapState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMapStateQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMapState>>> = ({ signal }) => getMapState({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMapState>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMapStateQueryResult = NonNullable<Awaited<ReturnType<typeof getMapState>>>
+export type GetMapStateQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current position, path, and recording status
+ */
+
+export function useGetMapState<TData = Awaited<ReturnType<typeof getMapState>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMapState>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMapStateQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSetMapRecordingUrl = () => {
+
+
+
+
+  return `/api/map/recording`
+}
+
+/**
+ * @summary Start or stop path recording
+ */
+export const setMapRecording = async (mapRecordingInput: MapRecordingInput, options?: RequestInit): Promise<MapState> => {
+
+  return customFetch<MapState>(getSetMapRecordingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      mapRecordingInput,)
+  }
+);}
+
+
+
+
+export const getSetMapRecordingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMapRecording>>, TError,{data: BodyType<MapRecordingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMapRecording>>, TError,{data: BodyType<MapRecordingInput>}, TContext> => {
+
+const mutationKey = ['setMapRecording'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMapRecording>>, {data: BodyType<MapRecordingInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMapRecording(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMapRecordingMutationResult = NonNullable<Awaited<ReturnType<typeof setMapRecording>>>
+    export type SetMapRecordingMutationBody = BodyType<MapRecordingInput>
+    export type SetMapRecordingMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Start or stop path recording
+ */
+export const useSetMapRecording = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMapRecording>>, TError,{data: BodyType<MapRecordingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setMapRecording>>,
+        TError,
+        {data: BodyType<MapRecordingInput>},
+        TContext
+      > => {
+      return useMutation(getSetMapRecordingMutationOptions(options));
+    }
+
+export const getClearMapPathUrl = () => {
+
+
+
+
+  return `/api/map/path/clear`
+}
+
+/**
+ * @summary Clear the recorded path
+ */
+export const clearMapPath = async ( options?: RequestInit): Promise<CommandResult> => {
+
+  return customFetch<CommandResult>(getClearMapPathUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getClearMapPathMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearMapPath>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof clearMapPath>>, TError,void, TContext> => {
+
+const mutationKey = ['clearMapPath'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof clearMapPath>>, void> = () => {
+
+
+          return  clearMapPath(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClearMapPathMutationResult = NonNullable<Awaited<ReturnType<typeof clearMapPath>>>
+
+    export type ClearMapPathMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Clear the recorded path
+ */
+export const useClearMapPath = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof clearMapPath>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof clearMapPath>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getClearMapPathMutationOptions(options));
+    }
+
+export const getAddWaypointUrl = () => {
+
+
+
+
+  return `/api/map/waypoint`
+}
+
+/**
+ * @summary Add a named waypoint at the current position
+ */
+export const addWaypoint = async (waypointInput: WaypointInput, options?: RequestInit): Promise<Waypoint> => {
+
+  return customFetch<Waypoint>(getAddWaypointUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      waypointInput,)
+  }
+);}
+
+
+
+
+export const getAddWaypointMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addWaypoint>>, TError,{data: BodyType<WaypointInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addWaypoint>>, TError,{data: BodyType<WaypointInput>}, TContext> => {
+
+const mutationKey = ['addWaypoint'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addWaypoint>>, {data: BodyType<WaypointInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  addWaypoint(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddWaypointMutationResult = NonNullable<Awaited<ReturnType<typeof addWaypoint>>>
+    export type AddWaypointMutationBody = BodyType<WaypointInput>
+    export type AddWaypointMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add a named waypoint at the current position
+ */
+export const useAddWaypoint = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addWaypoint>>, TError,{data: BodyType<WaypointInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addWaypoint>>,
+        TError,
+        {data: BodyType<WaypointInput>},
+        TContext
+      > => {
+      return useMutation(getAddWaypointMutationOptions(options));
+    }
 

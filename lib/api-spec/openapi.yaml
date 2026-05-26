@@ -19,6 +19,8 @@ tags:
     description: Autonomous mode
   - name: camera
     description: Camera feed
+  - name: map
+    description: Path recording and navigation map
 
 paths:
   /healthz:
@@ -207,6 +209,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TelemetrySnapshot"
+
+  /map/state:
+    get:
+      operationId: getMapState
+      tags: [map]
+      summary: Get current position, path, and recording status
+      responses:
+        "200":
+          description: Map state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapState"
+
+  /map/recording:
+    post:
+      operationId: setMapRecording
+      tags: [map]
+      summary: Start or stop path recording
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MapRecordingInput"
+      responses:
+        "200":
+          description: Recording status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapState"
+
+  /map/path/clear:
+    post:
+      operationId: clearMapPath
+      tags: [map]
+      summary: Clear the recorded path
+      responses:
+        "200":
+          description: Path cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
+  /map/waypoint:
+    post:
+      operationId: addWaypoint
+      tags: [map]
+      summary: Add a named waypoint at the current position
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WaypointInput"
+      responses:
+        "200":
+          description: Waypoint added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Waypoint"
 
 components:
   schemas:
@@ -424,3 +490,86 @@ components:
           $ref: "#/components/schemas/AutonomousStatus"
         timestamp:
           type: string
+
+    Position:
+      type: object
+      required: [x, y, headingDeg, timestamp]
+      properties:
+        x:
+          type: number
+          description: X position in meters
+        y:
+          type: number
+          description: Y position in meters
+        headingDeg:
+          type: number
+          description: Heading in degrees (0 = north)
+        timestamp:
+          type: string
+
+    PathPoint:
+      type: object
+      required: [x, y, headingDeg, timestamp, speed]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        headingDeg:
+          type: number
+        timestamp:
+          type: string
+        speed:
+          type: number
+
+    Waypoint:
+      type: object
+      required: [id, label, x, y, timestamp]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        timestamp:
+          type: string
+
+    WaypointInput:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+
+    MapState:
+      type: object
+      required: [position, path, waypoints, recording, recordingStartedAt, totalDistanceM, durationSeconds]
+      properties:
+        position:
+          $ref: "#/components/schemas/Position"
+        path:
+          type: array
+          items:
+            $ref: "#/components/schemas/PathPoint"
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Waypoint"
+        recording:
+          type: boolean
+        recordingStartedAt:
+          type: ["string", "null"]
+        totalDistanceM:
+          type: number
+        durationSeconds:
+          type: number
+
+    MapRecordingInput:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean

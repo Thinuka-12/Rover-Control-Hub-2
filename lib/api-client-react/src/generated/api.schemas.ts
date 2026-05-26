@@ -167,3 +167,48 @@ export interface TelemetrySnapshot {
   timestamp: string;
 }
 
+export interface Position {
+  /** X position in meters */
+  x: number;
+  /** Y position in meters */
+  y: number;
+  /** Heading in degrees (0 = north) */
+  headingDeg: number;
+  timestamp: string;
+}
+
+export interface PathPoint {
+  x: number;
+  y: number;
+  headingDeg: number;
+  timestamp: string;
+  speed: number;
+}
+
+export interface Waypoint {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  timestamp: string;
+}
+
+export interface WaypointInput {
+  label: string;
+}
+
+export interface MapState {
+  position: Position;
+  path: PathPoint[];
+  waypoints: Waypoint[];
+  recording: boolean;
+  /** @nullable */
+  recordingStartedAt: string | null;
+  totalDistanceM: number;
+  durationSeconds: number;
+}
+
+export interface MapRecordingInput {
+  active: boolean;
+}
+

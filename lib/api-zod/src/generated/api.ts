@@ -214,3 +214,94 @@ export const GetTelemetryResponse = zod.object({
 })
 
 
+/**
+ * @summary Get current position, path, and recording status
+ */
+export const GetMapStateResponse = zod.object({
+  "position": zod.object({
+  "x": zod.number().describe('X position in meters'),
+  "y": zod.number().describe('Y position in meters'),
+  "headingDeg": zod.number().describe('Heading in degrees (0 = north)'),
+  "timestamp": zod.string()
+}),
+  "path": zod.array(zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "headingDeg": zod.number(),
+  "timestamp": zod.string(),
+  "speed": zod.number()
+})),
+  "waypoints": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "x": zod.number(),
+  "y": zod.number(),
+  "timestamp": zod.string()
+})),
+  "recording": zod.boolean(),
+  "recordingStartedAt": zod.string().nullable(),
+  "totalDistanceM": zod.number(),
+  "durationSeconds": zod.number()
+})
+
+
+/**
+ * @summary Start or stop path recording
+ */
+export const SetMapRecordingBody = zod.object({
+  "active": zod.boolean()
+})
+
+export const SetMapRecordingResponse = zod.object({
+  "position": zod.object({
+  "x": zod.number().describe('X position in meters'),
+  "y": zod.number().describe('Y position in meters'),
+  "headingDeg": zod.number().describe('Heading in degrees (0 = north)'),
+  "timestamp": zod.string()
+}),
+  "path": zod.array(zod.object({
+  "x": zod.number(),
+  "y": zod.number(),
+  "headingDeg": zod.number(),
+  "timestamp": zod.string(),
+  "speed": zod.number()
+})),
+  "waypoints": zod.array(zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "x": zod.number(),
+  "y": zod.number(),
+  "timestamp": zod.string()
+})),
+  "recording": zod.boolean(),
+  "recordingStartedAt": zod.string().nullable(),
+  "totalDistanceM": zod.number(),
+  "durationSeconds": zod.number()
+})
+
+
+/**
+ * @summary Clear the recorded path
+ */
+export const ClearMapPathResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
+ * @summary Add a named waypoint at the current position
+ */
+export const AddWaypointBody = zod.object({
+  "label": zod.string()
+})
+
+export const AddWaypointResponse = zod.object({
+  "id": zod.string(),
+  "label": zod.string(),
+  "x": zod.number(),
+  "y": zod.number(),
+  "timestamp": zod.string()
+})
+
+
