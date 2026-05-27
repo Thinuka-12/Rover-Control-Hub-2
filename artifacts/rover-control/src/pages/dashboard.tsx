@@ -1,0 +1,691 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  useGetTelemetry, useGetLidarData, useSendRoverCommand, useStopRover,
+  useToggleAutonomousMode, useGetArmStatus, useSendArmCommand, useHomeArm,
+  useGetMapState, useSetMapRecording, useClearMapPath, useAddWaypoint,
+  RoverCommandInputCommand, AutonomousToggleInputMode,
+} from "@workspace/api-client-react";
+import { useRoverWs } from "@/hooks/use-rover-ws";
+import { useBluetooth } from "@/hooks/use-bluetooth";
+import { useCameraFeeds } from "@/hooks/use-camera-feeds";
+import { useLocalSettings } from "@/hooks/use-local-settings";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Battery, Thermometer, Wind, Bluetooth, BluetoothOff, Radio, Target,
+  Circle, Square, MapPin, ZoomIn, ZoomOut, Navigation, RotateCcw,
+  Grab, Home, Camera, WifiOff, Activity, Crosshair, Settings, Map,
+  ChevronRight,
+} from "lucide-react";
+
+interface PathPoint { x: number; y: number; headingDeg: number; speed: number; timestamp: string; }
+interface Waypoint { id: string; label: string; x: number; y: number; timestamp: string; }
+interface Position { x: number; y: number; headingDeg: number; timestamp: string; }
+
+type RightTab = "sensors" | "arm";
+type CenterView = "map" | "lidar";
+
+export default function Dashboard() {
+  // ── Data hooks ──────────────────────────────────────────────────────────────
+  const { settings, getEffectiveCameraUrl } = useLocalSettings();
+  const { status: wsStatus, telemetry: wsTelemetry, lidar: wsLidar, reconnect } = useRoverWs();
+  const telemetryRest = useGetTelemetry({ query: { refetchInterval: 1000 } as never });
+  const lidarRest = useGetLidarData({ query: { refetchInterval: 1000 } as never });
+  const mapStateQuery = useGetMapState({ query: { refetchInterval: 3000 } as never });
+  const armQuery = useGetArmStatus({ query: { refetchInterval: 1000 } as never });
+  const { btStatus, btDevice, isAvailable, connect: btConnect, disconnect: btDisconnect, sendCommand: btSend } = useBluetooth();
+  const { feeds: cameraFeeds } = useCameraFeeds();
+
+  const telemetry = wsTelemetry ?? telemetryRest.data;
+  const lidarData = wsLidar ?? lidarRest.data;
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
+  const sendCommand = useSendRoverCommand();
+  const stopRover = useStopRover();
+  const toggleAuto = useToggleAutonomousMode();
+  const sendArm = useSendArmCommand();
+  const homeArm = useHomeArm();
+  const setMapRec = useSetMapRecording();
+  const clearMapPath = useClearMapPath();
+  const addWaypoint = useAddWaypoint();
+
+  // ── UI state ─────────────────────────────────────────────────────────────────
+  const [rightTab, setRightTab] = useState<RightTab>("sensors");
+  const [centerView, setCenterView] = useState<CenterView>("map");
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+
+  // ── Map state ────────────────────────────────────────────────────────────────
+  const [localPath, setLocalPath] = useState<PathPoint[]>([]);
+  const [localWaypoints, setLocalWaypoints] = useState<Waypoint[]>([]);
+  const [recording, setRecording] = useState(false);
+  const [mapDist, setMapDist] = useState(0);
+  const [mapDur, setMapDur] = useState(0);
+  const [wsPos, setWsPos] = useState<Position | null>(null);
+  const [mapScale, setMapScale] = useState(40);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const [followRover, setFollowRover] = useState(true);
+  const [panningMap, setPanningMap] = useState(false);
+  const mapPanStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
+  const [wpLabel, setWpLabel] = useState("");
+
+  // ── Camera state ─────────────────────────────────────────────────────────────
+  const [camError, setCamError] = useState(false);
+  const effectiveCameraUrl = getEffectiveCameraUrl(settings);
+  const primaryCameraUrl = cameraFeeds.find((f) => f.url && f.status === "connected")?.url || effectiveCameraUrl || "";
+
+  // ── Canvas refs ──────────────────────────────────────────────────────────────
+  const lidarCanvasRef = useRef<HTMLCanvasElement>(null);
+  const lidarAnimRef = useRef<number>(0);
+  const mapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapAnimRef = useRef<number>(0);
+
+  // ── Sync map REST state ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (mapStateQuery.data) {
+      setLocalPath(mapStateQuery.data.path);
+      setLocalWaypoints(mapStateQuery.data.waypoints);
+      setRecording(mapStateQuery.data.recording);
+      setMapDist(mapStateQuery.data.totalDistanceM);
+      setMapDur(mapStateQuery.data.durationSeconds);
+    }
+  }, [mapStateQuery.data]);
+
+  // ── WS position subscription ─────────────────────────────────────────────────
+  useEffect(() => {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${window.location.host}/api/ws`);
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data as string) as { type: string; payload: unknown };
+        if (msg.type === "position") {
+          const pos = msg.payload as Position;
+          setWsPos(pos);
+          if (recording) {
+            setLocalPath((prev) => {
+              const last = prev[prev.length - 1];
+              if (!last || Math.abs(pos.x - last.x) > 0.02 || Math.abs(pos.y - last.y) > 0.02)
+                return [...prev.slice(-4999), { ...pos, speed: wsTelemetry?.rover.speed ?? 0 }];
+              return prev;
+            });
+          }
+        }
+      } catch { /* ignore */ }
+    };
+    return () => ws.close();
+  }, [recording, wsTelemetry]);
+
+  // ── Recording duration ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!recording) return;
+    const iv = setInterval(() => setMapDur((s) => s + 1), 1000);
+    return () => clearInterval(iv);
+  }, [recording]);
+
+  // ── LIDAR canvas ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = lidarCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const draw = () => {
+      const S = canvas.width, C = S / 2, maxD = 5000;
+      ctx.fillStyle = "#060606"; ctx.fillRect(0, 0, S, S);
+      for (let i = 1; i <= 4; i++) {
+        ctx.beginPath(); ctx.arc(C, C, (C / 4) * i, 0, Math.PI * 2);
+        ctx.strokeStyle = i === 4 ? "#2a2a2a" : "#181818"; ctx.lineWidth = 1; ctx.stroke();
+      }
+      ctx.strokeStyle = "#181818"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(C, 0); ctx.lineTo(C, S); ctx.moveTo(0, C); ctx.lineTo(S, C); ctx.stroke();
+      // Sweep
+      const sw = ((Date.now() % 3000) / 3000) * Math.PI * 2;
+      const grd = ctx.createRadialGradient(C, C, 0, C, C, C);
+      grd.addColorStop(0, "rgba(255,176,0,0.10)"); grd.addColorStop(1, "rgba(255,176,0,0.01)");
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.moveTo(C, C);
+      ctx.arc(C, C, C, sw - 0.6, sw); ctx.closePath(); ctx.fill();
+      // Points
+      lidarData?.points?.forEach((pt) => {
+        if (pt.distanceMm <= 0 || pt.distanceMm >= maxD) return;
+        const r = (pt.distanceMm / maxD) * C;
+        const rad = (pt.angle - 90) * (Math.PI / 180);
+        const alpha = Math.min(1, pt.quality / 200);
+        ctx.fillStyle = pt.distanceMm < 600 ? `rgba(255,60,60,${alpha})` : `rgba(255,176,0,${alpha})`;
+        ctx.beginPath(); ctx.arc(C + r * Math.cos(rad), C + r * Math.sin(rad), pt.distanceMm < 600 ? 3 : 2, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.fillStyle = "#00e676"; ctx.beginPath(); ctx.arc(C, C, 4, 0, Math.PI * 2); ctx.fill();
+      lidarAnimRef.current = requestAnimationFrame(draw);
+    };
+    lidarAnimRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(lidarAnimRef.current);
+  }, [lidarData]);
+
+  // ── Map canvas ────────────────────────────────────────────────────────────────
+  const currentPos = wsPos ?? mapStateQuery.data?.position ?? { x: 0, y: 0, headingDeg: 0, timestamp: "" };
+
+  useEffect(() => {
+    const canvas = mapCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const draw = () => {
+      const W = canvas.width, H = canvas.height;
+      const cx = W / 2 + mapPan.x, cy = H / 2 + mapPan.y;
+      const ox = followRover ? cx - currentPos.x * mapScale : cx;
+      const oy = followRover ? cy + currentPos.y * mapScale : cy;
+      ctx.fillStyle = "#060606"; ctx.fillRect(0, 0, W, H);
+      // Grid
+      const gOp = Math.min(1, (mapScale - 10) / 30);
+      if (gOp > 0.05) {
+        ctx.strokeStyle = `rgba(35,35,35,${gOp})`; ctx.lineWidth = 1;
+        for (let x = ox % mapScale; x < W; x += mapScale) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+        for (let y = oy % mapScale; y < H; y += mapScale) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+      }
+      // Origin crosshair
+      ctx.strokeStyle = "rgba(60,60,60,0.7)"; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(ox, 0); ctx.lineTo(ox, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.stroke();
+      ctx.setLineDash([]);
+      // Path
+      if (localPath.length > 1) {
+        ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+        for (let i = 1; i < localPath.length; i++) {
+          ctx.strokeStyle = `rgba(255,176,0,${0.15 + (i / localPath.length) * 0.85})`;
+          ctx.beginPath();
+          ctx.moveTo(ox + localPath[i - 1].x * mapScale, oy - localPath[i - 1].y * mapScale);
+          ctx.lineTo(ox + localPath[i].x * mapScale, oy - localPath[i].y * mapScale);
+          ctx.stroke();
+        }
+      }
+      // Waypoints
+      for (const wp of localWaypoints) {
+        const wx = ox + wp.x * mapScale, wy = oy - wp.y * mapScale;
+        ctx.fillStyle = "#00e5ff"; ctx.beginPath(); ctx.arc(wx, wy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(0,229,255,0.3)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(wx, wy, 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = "#00e5ff"; ctx.font = "bold 9px monospace"; ctx.fillText(wp.label, wx + 6, wy - 4);
+      }
+      // Scale bar
+      const bm = mapScale >= 40 ? 5 : mapScale >= 20 ? 10 : 20;
+      const bp = bm * mapScale;
+      ctx.strokeStyle = "#ffb000"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(12, H - 20); ctx.lineTo(12 + bp, H - 20);
+      ctx.moveTo(12, H - 24); ctx.lineTo(12, H - 16);
+      ctx.moveTo(12 + bp, H - 24); ctx.lineTo(12 + bp, H - 16); ctx.stroke();
+      ctx.fillStyle = "#ffb000"; ctx.font = "9px monospace"; ctx.fillText(`${bm}m`, 12 + bp / 2 - 7, H - 24);
+      // Rover
+      const rx = ox + currentPos.x * mapScale, ry = oy - currentPos.y * mapScale;
+      const hRad = (currentPos.headingDeg - 90) * (Math.PI / 180);
+      const grd2 = ctx.createRadialGradient(rx, ry, 0, rx, ry, 16);
+      grd2.addColorStop(0, "rgba(0,230,118,0.3)"); grd2.addColorStop(1, "rgba(0,230,118,0)");
+      ctx.fillStyle = grd2; ctx.beginPath(); ctx.arc(rx, ry, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(rx, ry); ctx.rotate(hRad);
+      ctx.fillStyle = "#00e676"; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(5, 7); ctx.lineTo(0, 3); ctx.lineTo(-5, 7); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      // Coords
+      ctx.fillStyle = "#444"; ctx.font = "9px monospace";
+      ctx.fillText(`X:${currentPos.x.toFixed(1)} Y:${currentPos.y.toFixed(1)} H:${Math.round(currentPos.headingDeg)}°`, 12, H - 8);
+      mapAnimRef.current = requestAnimationFrame(draw);
+    };
+    mapAnimRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(mapAnimRef.current);
+  }, [localPath, localWaypoints, currentPos, mapScale, mapPan, followRover]);
+
+  // ── Resize map canvas ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = mapContainerRef.current, canvas = mapCanvasRef.current;
+    if (!el || !canvas) return;
+    const resize = () => { canvas.width = el.clientWidth; canvas.height = el.clientHeight; };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // ── Keyboard drive ────────────────────────────────────────────────────────────
+  const handleDrive = useCallback((cmd: RoverCommandInputCommand | "stop") => {
+    if (cmd === "stop") { stopRover.mutate(); if (btStatus === "connected") btSend("STOP"); }
+    else { sendCommand.mutate({ data: { command: cmd, speed: 80, duration: null } }); if (btStatus === "connected") btSend(cmd.toUpperCase()); }
+  }, [sendCommand, stopRover, btStatus, btSend]);
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.repeat || document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+      let cmd: RoverCommandInputCommand | "stop" | null = null;
+      switch (e.key.toLowerCase()) {
+        case "w": case "arrowup": cmd = "forward"; setActiveKey("up"); break;
+        case "s": case "arrowdown": cmd = "backward"; setActiveKey("down"); break;
+        case "a": case "arrowleft": cmd = "left"; setActiveKey("left"); break;
+        case "d": case "arrowright": cmd = "right"; setActiveKey("right"); break;
+        case " ": cmd = "stop"; setActiveKey("stop"); break;
+      }
+      if (cmd) { e.preventDefault(); handleDrive(cmd); }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === "INPUT") return;
+      if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) {
+        handleDrive("stop"); setActiveKey(null);
+      }
+    };
+    window.addEventListener("keydown", down); window.addEventListener("keyup", up);
+    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
+  }, [handleDrive]);
+
+  // ── Arm state ─────────────────────────────────────────────────────────────────
+  const axes = armQuery.data?.axes || [
+    { id: 1, label: "Base Pan", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+    { id: 2, label: "Shoulder", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+    { id: 3, label: "Elbow", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+    { id: 4, label: "Wrist Pitch", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+    { id: 5, label: "Wrist Roll", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+    { id: 6, label: "Gripper", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+  ];
+
+  const rover = telemetry?.rover;
+  const sensors = telemetry?.sensors;
+  const autoData = telemetry?.autonomous;
+
+  const fmtDur = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  const wsColor = wsStatus === "connected" ? "#00e676" : wsStatus === "connecting" ? "#ffb000" : "#ff4444";
+
+  // ── Map pan handlers ──────────────────────────────────────────────────────────
+  const onMapMouseDown = (e: React.MouseEvent) => {
+    setFollowRover(false); setPanningMap(true);
+    mapPanStart.current = { x: e.clientX, y: e.clientY, ox: mapPan.x, oy: mapPan.y };
+  };
+  const onMapMouseMove = (e: React.MouseEvent) => {
+    if (!panningMap) return;
+    setMapPan({ x: mapPanStart.current.ox + (e.clientX - mapPanStart.current.x), y: mapPanStart.current.oy + (e.clientY - mapPanStart.current.y) });
+  };
+  const onMapMouseUp = () => setPanningMap(false);
+  const onMapWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    setMapScale((s) => Math.max(5, Math.min(200, s * (e.deltaY < 0 ? 1.1 : 0.9))));
+  };
+
+  // ── JSX ───────────────────────────────────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-screen w-screen bg-background overflow-hidden font-mono text-xs">
+
+      {/* ── HEADER STATUS BAR ─────────────────────────────────────────────── */}
+      <header className="flex items-center gap-2 px-3 h-11 border-b border-border bg-black/60 shrink-0 overflow-x-auto">
+        {/* Logo */}
+        <div className="flex items-center gap-1.5 shrink-0 mr-2">
+          <Activity className="w-4 h-4 text-primary" />
+          <span className="font-bold text-primary text-sm tracking-widest">ROVER-CMD</span>
+        </div>
+
+        {/* WS */}
+        <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
+          <Radio className="w-3 h-3" style={{ color: wsColor }} />
+          <span className="text-[10px]" style={{ color: wsColor }}>{wsStatus === "connected" ? "LIVE" : wsStatus === "connecting" ? "CONN…" : "OFFLINE"}</span>
+          {wsStatus !== "connected" && <button onClick={reconnect} className="text-[9px] text-primary underline ml-1">retry</button>}
+        </div>
+
+        {/* Battery */}
+        <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
+          <Battery className="w-3 h-3 text-secondary" />
+          <span className="text-[10px] text-secondary font-bold">{rover?.batteryLevel ?? 0}%</span>
+        </div>
+
+        {/* Speed */}
+        <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
+          <Wind className="w-3 h-3 text-primary" />
+          <span className="text-[10px] text-primary">{(rover?.speed ?? 0).toFixed(1)} m/s</span>
+        </div>
+
+        {/* Temp */}
+        <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
+          <Thermometer className="w-3 h-3 text-red-400" />
+          <span className="text-[10px] text-red-400">{rover?.motorTemperature ?? 0}°C</span>
+        </div>
+
+        {/* Direction */}
+        <Badge variant="outline" className="text-[10px] px-2 py-0 h-6 border-primary/50 text-primary uppercase shrink-0">
+          {rover?.direction ?? "idle"}
+        </Badge>
+
+        {/* BLE */}
+        <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
+          {btStatus === "connected" ? (
+            <button onClick={btDisconnect} className="flex items-center gap-1 text-blue-400">
+              <Bluetooth className="w-3 h-3" />
+              <span className="text-[10px]">{btDevice?.name?.slice(0, 10) ?? "BLE"}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            </button>
+          ) : btStatus === "connecting" ? (
+            <span className="flex items-center gap-1 text-[10px] text-yellow-400"><Bluetooth className="w-3 h-3 animate-pulse" />PAIRING</span>
+          ) : isAvailable ? (
+            <button onClick={btConnect} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-blue-400">
+              <BluetoothOff className="w-3 h-3" />BLE
+            </button>
+          ) : (
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40"><BluetoothOff className="w-3 h-3" />NO BLE</span>
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          {/* Recording indicator */}
+          {recording && (
+            <span className="flex items-center gap-1 text-[10px] text-red-400 animate-pulse border border-red-500/40 rounded px-2 py-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> REC {fmtDur(mapDur)}
+            </span>
+          )}
+
+          {/* Autonomous */}
+          <div className="flex items-center gap-1.5 border border-border rounded px-2 py-0.5">
+            <span className="text-[10px] text-muted-foreground">AUTO</span>
+            <Switch
+              checked={autoData?.enabled ?? false}
+              onCheckedChange={(c) => toggleAuto.mutate({ data: { enabled: c, mode: (autoData?.mode === "idle" ? "exploring" : (autoData?.mode ?? "exploring")) as AutonomousToggleInputMode } })}
+              className="scale-75 origin-left"
+            />
+            <Select
+              value={autoData?.mode || "idle"}
+              onValueChange={(v) => toggleAuto.mutate({ data: { enabled: autoData?.enabled ?? false, mode: v as AutonomousToggleInputMode } })}
+              disabled={!autoData?.enabled}
+            >
+              <SelectTrigger className="h-5 w-24 text-[10px] bg-background border-border px-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["idle", "exploring", "homing", "following", "patrolling"].map((m) => (
+                  <SelectItem key={m} value={m} className="text-[11px]">{m.toUpperCase()}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Nav links */}
+          <a href="/settings" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary px-2 py-0.5 border border-border rounded">
+            <Settings className="w-3 h-3" />
+          </a>
+        </div>
+      </header>
+
+      {/* ── MAIN 3-COLUMN GRID ────────────────────────────────────────────── */}
+      <div className="flex flex-1 min-h-0 divide-x divide-border">
+
+        {/* ── LEFT PANEL (280px) ─────────────────────────────────────────── */}
+        <div className="w-[280px] shrink-0 flex flex-col divide-y divide-border overflow-y-auto">
+
+          {/* Primary camera */}
+          <div className="relative bg-black aspect-video shrink-0">
+            <div className="absolute top-1.5 left-1.5 z-10 flex gap-1">
+              <span className="px-1.5 py-0.5 bg-black/70 border border-primary/50 text-primary text-[9px] font-bold">CAM 01</span>
+              {!primaryCameraUrl || camError ? (
+                <span className="px-1.5 py-0.5 bg-red-900/50 border border-red-500 text-red-400 text-[9px] animate-pulse">NO SIGNAL</span>
+              ) : (
+                <span className="px-1.5 py-0.5 bg-green-900/40 border border-green-500/40 text-green-400 text-[9px]">LIVE</span>
+              )}
+            </div>
+            {primaryCameraUrl && !camError ? (
+              <img src={primaryCameraUrl} alt="cam" className="w-full h-full object-cover" onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30 gap-1">
+                <WifiOff className="w-6 h-6" /><span className="text-[9px]">UPLINK LOST</span>
+              </div>
+            )}
+            <Crosshair className="absolute inset-0 m-auto w-10 h-10 text-primary/15 pointer-events-none stroke-1" />
+            <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-primary/30 pointer-events-none" />
+            <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-primary/30 pointer-events-none" />
+            <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-primary/30 pointer-events-none" />
+          </div>
+
+          {/* Additional camera feeds (from cameras page config) */}
+          {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
+            <div key={f.id} className="relative bg-black shrink-0" style={{ aspectRatio: "16/9" }}>
+              <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
+              <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
+            </div>
+          ) : null)}
+
+          {/* Drive D-pad */}
+          <div className="p-3 shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] text-muted-foreground uppercase">Drive Control</span>
+              <span className="text-[9px] text-muted-foreground/50">WASD / ARROWS</span>
+            </div>
+            <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-36 h-36 mx-auto">
+              <div />
+              <DKey active={activeKey === "up"} onDown={() => { handleDrive("forward"); setActiveKey("up"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="W" />
+              <div />
+              <DKey active={activeKey === "left"} onDown={() => { handleDrive("left"); setActiveKey("left"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="A" />
+              <button onClick={() => handleDrive("stop")} className={`rounded border text-[10px] font-bold transition-colors ${activeKey === "stop" ? "bg-destructive text-white border-destructive" : "border-destructive text-destructive hover:bg-destructive/20"}`}>
+                STOP
+              </button>
+              <DKey active={activeKey === "right"} onDown={() => { handleDrive("right"); setActiveKey("right"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="D" />
+              <div />
+              <DKey active={activeKey === "down"} onDown={() => { handleDrive("backward"); setActiveKey("down"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="S" />
+              <div />
+            </div>
+          </div>
+
+          {/* Telemetry mini */}
+          <div className="p-3 space-y-2 shrink-0">
+            <span className="text-[10px] text-muted-foreground uppercase">Telemetry</span>
+            <div>
+              <div className="flex justify-between mb-0.5"><span className="text-[10px] text-muted-foreground">Battery</span><span className="text-[10px] text-secondary font-bold">{rover?.batteryLevel ?? 0}%</span></div>
+              <Progress value={rover?.batteryLevel ?? 0} className="h-1" />
+            </div>
+            <div className="flex justify-between"><span className="text-[10px] text-muted-foreground">Wheels</span><span className="text-[10px] font-mono">{rover?.wheelCount ?? "—"}</span></div>
+          </div>
+
+          {/* Path recording quick controls */}
+          <div className="p-3 space-y-2 shrink-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground uppercase">Path Recording</span>
+              <span className="text-[10px] font-mono text-primary">{mapDist.toFixed(1)}m / {fmtDur(mapDur)}</span>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => {
+                  const next = !recording;
+                  setMapRec.mutate({ data: { active: next } }, { onSuccess: (d) => { setRecording(d.recording); if (!d.recording) setLocalPath(d.path); } });
+                  setRecording(next);
+                }}
+                className={`flex-1 flex items-center justify-center gap-1 py-1 rounded border text-[10px] font-bold transition-colors ${recording ? "border-red-500 text-red-400 bg-red-500/10 animate-pulse" : "border-primary/50 text-primary hover:bg-primary/10"}`}
+              >
+                {recording ? <><Square className="w-2.5 h-2.5 fill-current" /> STOP</> : <><Circle className="w-2.5 h-2.5" /> REC</>}
+              </button>
+              <button
+                onClick={() => clearMapPath.mutate(undefined, { onSuccess: () => { setLocalPath([]); setLocalWaypoints([]); setRecording(false); setMapDist(0); setMapDur(0); } })}
+                className="px-2 py-1 border border-border rounded text-muted-foreground text-[10px] hover:text-destructive hover:border-destructive"
+              >CLR</button>
+            </div>
+            <div className="flex gap-1">
+              <Input value={wpLabel} onChange={(e) => setWpLabel(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } }); } }}
+                placeholder="Waypoint label…" className="h-6 text-[10px] font-mono bg-background border-border px-2 flex-1" />
+              <button
+                onClick={() => addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } })}
+                className="px-1.5 py-0.5 border border-cyan-500/40 text-cyan-400 rounded text-[10px] hover:bg-cyan-500/10"
+              ><MapPin className="w-3 h-3" /></button>
+            </div>
+            {/* Waypoint list */}
+            <div className="space-y-0.5 max-h-28 overflow-y-auto">
+              {localWaypoints.map((wp, i) => (
+                <div key={wp.id} className="flex items-center gap-1 text-[9px]">
+                  <span className="text-cyan-400 w-3">{i + 1}</span>
+                  <span className="flex-1 truncate text-foreground">{wp.label}</span>
+                  <span className="text-muted-foreground font-mono">{wp.x.toFixed(1)},{wp.y.toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── CENTER PANEL (flex-1) ──────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Center tab bar */}
+          <div className="flex items-center gap-2 px-3 h-9 border-b border-border bg-black/30 shrink-0">
+            <button onClick={() => setCenterView("map")}
+              className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
+              <Map className="w-3 h-3" /> MAP
+            </button>
+            <button onClick={() => setCenterView("lidar")}
+              className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
+              <Target className="w-3 h-3" /> LIDAR
+            </button>
+            {centerView === "map" && (
+              <div className="ml-auto flex items-center gap-1">
+                <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-1 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground"><ZoomIn className="w-3 h-3" /></button>
+                <button onClick={() => setMapScale((s) => Math.max(5, s * 0.8))} className="p-1 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground"><ZoomOut className="w-3 h-3" /></button>
+                <button onClick={() => { setFollowRover(true); setMapPan({ x: 0, y: 0 }); }}
+                  className={`p-1 border rounded ${followRover ? "border-primary text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary"}`}><Navigation className="w-3 h-3" /></button>
+                <button onClick={() => { setMapPan({ x: 0, y: 0 }); setFollowRover(false); }} className="p-1 border border-border rounded hover:border-primary text-muted-foreground"><RotateCcw className="w-3 h-3" /></button>
+                <span className="text-[10px] text-muted-foreground font-mono ml-1">{Math.round(mapScale)}px/m</span>
+                <span className="text-[10px] text-muted-foreground/40 ml-2">Drag·Scroll</span>
+              </div>
+            )}
+          </div>
+
+          {/* Center view */}
+          <div className="flex-1 relative min-h-0 bg-[#060606]">
+            {/* MAP */}
+            <div ref={mapContainerRef}
+              className={`absolute inset-0 cursor-crosshair ${centerView === "map" ? "" : "hidden"}`}
+              onMouseDown={onMapMouseDown} onMouseMove={onMapMouseMove} onMouseUp={onMapMouseUp} onMouseLeave={onMapMouseUp} onWheel={onMapWheel}>
+              <canvas ref={mapCanvasRef} className="w-full h-full" />
+            </div>
+            {/* LIDAR */}
+            <div className={`absolute inset-0 flex items-center justify-center ${centerView === "lidar" ? "" : "hidden"}`}>
+              <div className="relative">
+                <canvas ref={lidarCanvasRef} width={420} height={420} className="rounded-full border border-border" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-muted-foreground/30 pointer-events-none">LIDAR</div>
+                {/* Distance labels */}
+                {[1250, 2500, 3750, 5000].map((d, i) => (
+                  <span key={d} className="absolute text-[8px] text-muted-foreground/40 font-mono"
+                    style={{ left: "50%", top: `${50 - (i + 1) * 12.5}%`, transform: "translateX(4px)" }}>{d}mm</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT PANEL (260px) ────────────────────────────────────────── */}
+        <div className="w-[260px] shrink-0 flex flex-col divide-y divide-border">
+          {/* Tab bar */}
+          <div className="flex h-9 shrink-0">
+            {(["sensors", "arm"] as RightTab[]).map((tab) => (
+              <button key={tab} onClick={() => setRightTab(tab)}
+                className={`flex-1 text-[11px] font-bold uppercase tracking-wider transition-colors ${rightTab === tab ? "bg-primary/15 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                {tab === "sensors" ? "SENSORS" : "ARM"}
+              </button>
+            ))}
+          </div>
+
+          {/* Sensors tab */}
+          {rightTab === "sensors" && (
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {/* Ultrasonic */}
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase border-b border-border/50 pb-1 mb-2">Ultrasonic (UR)</p>
+                <div className="space-y-2">
+                  {sensors?.ultrasonic?.map((u) => (
+                    <div key={u.id}>
+                      <div className="flex justify-between mb-0.5">
+                        <span className={`text-[10px] ${u.triggered ? "text-destructive font-bold" : "text-primary"}`}>{u.label}</span>
+                        <span className={`text-[10px] font-mono ${u.triggered ? "text-destructive font-bold animate-pulse" : ""}`}>{u.distanceCm}cm</span>
+                      </div>
+                      <Progress value={Math.min((u.distanceCm / 400) * 100, 100)}
+                        className={`h-1 ${u.triggered ? "bg-destructive/20 [&>div]:bg-destructive" : "bg-muted"}`} />
+                    </div>
+                  )) ?? <p className="text-[10px] text-muted-foreground/40">No data</p>}
+                </div>
+              </div>
+
+              {/* IR */}
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase border-b border-border/50 pb-1 mb-2">Infrared (IR)</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {sensors?.infrared?.map((ir) => (
+                    <div key={ir.id} className={`p-2 border rounded flex flex-col items-center text-center ${ir.detected ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-muted-foreground"}`}>
+                      <span className="text-[9px] font-bold uppercase">{ir.label}</span>
+                      <span className="text-[9px]">{ir.detected ? "OBSTACLE" : "CLEAR"}</span>
+                      <span className="text-[8px] opacity-50 font-mono">{ir.rawValue}</span>
+                    </div>
+                  )) ?? null}
+                </div>
+              </div>
+
+              {/* Obstacle warning */}
+              {sensors?.ultrasonic?.some((u) => u.triggered) && (
+                <div className="p-2 border border-destructive rounded bg-destructive/10 text-destructive text-[10px] text-center font-bold animate-pulse">
+                  ⚠ OBSTACLE DETECTED
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Arm tab */}
+          {rightTab === "arm" && (
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {/* Arm header */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground uppercase">6-Axis Manipulator</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] text-muted-foreground">GRIP</span>
+                  <Switch
+                    checked={armQuery.data?.gripping ?? false}
+                    onCheckedChange={(c) => sendArm.mutate({ data: { axes: [], grip: c } })}
+                    className="scale-75 origin-right"
+                  />
+                </div>
+              </div>
+
+              {/* Arm status */}
+              <div className="flex items-center justify-between">
+                <Grab className={`w-5 h-5 ${armQuery.data?.gripping ? "text-destructive" : "text-primary/40"}`} />
+                <span className={`text-[10px] font-mono ${armQuery.data?.moving ? "text-yellow-400" : "text-muted-foreground"}`}>
+                  {armQuery.data?.moving ? "MOVING" : "HOLD"}
+                </span>
+                <Button size="sm" variant="outline" onClick={() => homeArm.mutate()} className="h-6 text-[10px] border-primary/40 text-primary hover:bg-primary/10 px-2">
+                  <Home className="w-2.5 h-2.5 mr-1" />HOME
+                </Button>
+              </div>
+
+              {/* Axis sliders */}
+              <div className="space-y-3">
+                {axes.map((axis) => (
+                  <div key={axis.id}>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[10px] text-primary font-bold">A{axis.id} {axis.label}</span>
+                      <span className="text-[10px] font-mono text-secondary bg-secondary/10 px-1 rounded">{axis.angleDeg.toFixed(0)}°</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-muted-foreground w-5">{axis.minDeg}°</span>
+                      <Slider
+                        value={[axis.angleDeg]} min={axis.minDeg} max={axis.maxDeg} step={1}
+                        onValueCommit={(v) => sendArm.mutate({ data: { axes: [{ id: axis.id, angleDeg: v[0] }], grip: null } })}
+                        className="flex-1"
+                      />
+                      <span className="text-[9px] text-muted-foreground w-6">{axis.maxDeg}°</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Mini drive key component ────────────────────────────────────────────────
+function DKey({ active, onDown, onUp, label }: { active: boolean; onDown: () => void; onUp: () => void; label: string }) {
+  return (
+    <button
+      className={`rounded border text-xs font-bold transition-colors select-none ${active ? "bg-primary text-primary-foreground border-primary" : "border-primary/50 text-primary hover:bg-primary/20"}`}
+      onMouseDown={onDown} onMouseUp={onUp} onMouseLeave={onUp}
+      onTouchStart={(e) => { e.preventDefault(); onDown(); }} onTouchEnd={onUp}
+    >
+      {label}
+    </button>
+  );
+}

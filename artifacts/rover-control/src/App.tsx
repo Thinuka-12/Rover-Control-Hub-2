@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
+import Dashboard from "@/pages/dashboard";
 import MainControl from "@/pages/main-control";
 import ArmControl from "@/pages/arm-control";
 import Settings from "@/pages/settings";
@@ -14,7 +15,8 @@ const queryClient = new QueryClient();
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={MainControl} />
+      <Route path="/" component={Dashboard} />
+      <Route path="/classic" component={MainControl} />
       <Route path="/arm" component={ArmControl} />
       <Route path="/cameras" component={CamerasPage} />
       <Route path="/map" component={MapPage} />
