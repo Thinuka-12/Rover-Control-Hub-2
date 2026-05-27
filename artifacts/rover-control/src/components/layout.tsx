@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetTelemetry } from "@workspace/api-client-react";
-import { Activity, Settings, Navigation, Crosshair, Map } from "lucide-react";
+import { Activity, Settings, Navigation, Crosshair, Map, Camera } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -16,6 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "MAIN CONTROL", icon: Navigation },
     { href: "/arm", label: "ARM SYSTEM", icon: Crosshair },
+    { href: "/cameras", label: "CAMERAS", icon: Camera },
     { href: "/map", label: "PATH MAP", icon: Map },
     { href: "/settings", label: "CONFIGURATION", icon: Settings },
   ];
