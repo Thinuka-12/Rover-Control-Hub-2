@@ -274,15 +274,27 @@ export default function Dashboard() {
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
   }, [handleDrive]);
 
-  // ── Arm state ─────────────────────────────────────────────────────────────────
-  const axes = armQuery.data?.axes || [
-    { id: 1, label: "Base Pan", angleDeg: 90, minDeg: 0, maxDeg: 180 },
-    { id: 2, label: "Shoulder", angleDeg: 90, minDeg: 0, maxDeg: 180 },
-    { id: 3, label: "Elbow", angleDeg: 90, minDeg: 0, maxDeg: 180 },
-    { id: 4, label: "Wrist Pitch", angleDeg: 90, minDeg: 0, maxDeg: 180 },
-    { id: 5, label: "Wrist Roll", angleDeg: 90, minDeg: 0, maxDeg: 180 },
-    { id: 6, label: "Gripper", angleDeg: 90, minDeg: 0, maxDeg: 180 },
+  // ── Arm local state (optimistic — prevents refetch from snapping sliders mid-drag) ──
+  const serverAxisDefaults = [
+    { id: 1, label: "Base Rotation", angleDeg: 0,   minDeg: -180, maxDeg: 180 },
+    { id: 2, label: "Shoulder",      angleDeg: 45,  minDeg: -90,  maxDeg: 90  },
+    { id: 3, label: "Elbow",         angleDeg: -30, minDeg: -135, maxDeg: 135 },
+    { id: 4, label: "Wrist Pitch",   angleDeg: 0,   minDeg: -90,  maxDeg: 90  },
+    { id: 5, label: "Wrist Roll",    angleDeg: 0,   minDeg: -180, maxDeg: 180 },
+    { id: 6, label: "Gripper Rot",   angleDeg: 0,   minDeg: -90,  maxDeg: 90  },
   ];
+  const [localAxes, setLocalAxes] = useState(serverAxisDefaults);
+  const armDragging = useRef(false);
+
+  useEffect(() => {
+    if (!armDragging.current && armQuery.data?.axes?.length) {
+      setLocalAxes(armQuery.data.axes.map((a) => ({
+        id: a.id, label: a.label, angleDeg: a.angleDeg, minDeg: a.minDeg, maxDeg: a.maxDeg,
+      })));
+    }
+  }, [armQuery.data]);
+
+  const axes = localAxes;
 
   const rover = telemetry?.rover;
   const sensors = telemetry?.sensors;
@@ -654,17 +666,29 @@ export default function Dashboard() {
                 {axes.map((axis) => (
                   <div key={axis.id}>
                     <div className="flex justify-between mb-1">
-                      <span className="text-[10px] text-primary font-bold">A{axis.id} {axis.label}</span>
+                      <span className="text-[10px] text-primary font-bold">A{axis.id} — {axis.label}</span>
                       <span className="text-[10px] font-mono text-secondary bg-secondary/10 px-1 rounded">{axis.angleDeg.toFixed(0)}°</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-muted-foreground w-5">{axis.minDeg}°</span>
+                      <span className="text-[9px] text-muted-foreground w-7 text-right">{axis.minDeg}°</span>
                       <Slider
-                        value={[axis.angleDeg]} min={axis.minDeg} max={axis.maxDeg} step={1}
-                        onValueCommit={(v) => sendArm.mutate({ data: { axes: [{ id: axis.id, angleDeg: v[0] }], grip: null } })}
+                        value={[axis.angleDeg]}
+                        min={axis.minDeg}
+                        max={axis.maxDeg}
+                        step={1}
+                        onValueChange={(v) => {
+                          armDragging.current = true;
+                          setLocalAxes((prev) =>
+                            prev.map((a) => a.id === axis.id ? { ...a, angleDeg: v[0] } : a)
+                          );
+                        }}
+                        onValueCommit={(v) => {
+                          armDragging.current = false;
+                          sendArm.mutate({ data: { axes: [{ id: axis.id, angleDeg: v[0] }], grip: null } });
+                        }}
                         className="flex-1"
                       />
-                      <span className="text-[9px] text-muted-foreground w-6">{axis.maxDeg}°</span>
+                      <span className="text-[9px] text-muted-foreground w-7">{axis.maxDeg}°</span>
                     </div>
                   </div>
                 ))}
