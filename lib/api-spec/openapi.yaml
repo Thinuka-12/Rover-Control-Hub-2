@@ -255,6 +255,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/CommandResult"
 
+  /rover/home:
+    get:
+      operationId: getHomePosition
+      tags: [rover]
+      summary: Get the saved home position
+      responses:
+        "200":
+          description: Home position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeState"
+
+  /rover/home/set:
+    post:
+      operationId: setHomePosition
+      tags: [rover]
+      summary: Save current rover position as home
+      responses:
+        "200":
+          description: Home position saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeState"
+
+  /rover/rth:
+    post:
+      operationId: initiateRth
+      tags: [rover]
+      summary: Begin return-to-home sequence
+      responses:
+        "200":
+          description: RTH initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RthStatus"
+
+  /rover/rth/abort:
+    post:
+      operationId: abortRth
+      tags: [rover]
+      summary: Abort return-to-home sequence
+      responses:
+        "200":
+          description: RTH aborted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandResult"
+
   /map/waypoint:
     post:
       operationId: addWaypoint
@@ -573,3 +625,38 @@ components:
       properties:
         active:
           type: boolean
+
+    HomeState:
+      type: object
+      required: [set, x, y, setAt]
+      properties:
+        set:
+          type: boolean
+        x:
+          type: number
+          description: Home X in meters
+        y:
+          type: number
+          description: Home Y in meters
+        setAt:
+          type: ["string", "null"]
+
+    RthStatus:
+      type: object
+      required: [active, progressPct, etaSeconds, startX, startY, homeX, homeY]
+      properties:
+        active:
+          type: boolean
+        progressPct:
+          type: number
+          description: 0-100 progress percent
+        etaSeconds:
+          type: ["number", "null"]
+        startX:
+          type: number
+        startY:
+          type: number
+        homeX:
+          type: number
+        homeY:
+          type: number

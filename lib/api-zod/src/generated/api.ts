@@ -290,6 +290,51 @@ export const ClearMapPathResponse = zod.object({
 
 
 /**
+ * @summary Get the saved home position
+ */
+export const GetHomePositionResponse = zod.object({
+  "set": zod.boolean(),
+  "x": zod.number().describe('Home X in meters'),
+  "y": zod.number().describe('Home Y in meters'),
+  "setAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Save current rover position as home
+ */
+export const SetHomePositionResponse = zod.object({
+  "set": zod.boolean(),
+  "x": zod.number().describe('Home X in meters'),
+  "y": zod.number().describe('Home Y in meters'),
+  "setAt": zod.string().nullable()
+})
+
+
+/**
+ * @summary Begin return-to-home sequence
+ */
+export const InitiateRthResponse = zod.object({
+  "active": zod.boolean(),
+  "progressPct": zod.number().describe('0-100 progress percent'),
+  "etaSeconds": zod.number().nullable(),
+  "startX": zod.number(),
+  "startY": zod.number(),
+  "homeX": zod.number(),
+  "homeY": zod.number()
+})
+
+
+/**
+ * @summary Abort return-to-home sequence
+ */
+export const AbortRthResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string()
+})
+
+
+/**
  * @summary Add a named waypoint at the current position
  */
 export const AddWaypointBody = zod.object({

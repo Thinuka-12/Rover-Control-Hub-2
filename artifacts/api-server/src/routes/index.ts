@@ -7,6 +7,7 @@ import autonomousRouter from "./autonomous";
 import cameraRouter from "./camera";
 import telemetryRouter from "./telemetry";
 import mapRouter from "./map";
+import homeRouter from "./home";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(autonomousRouter);
 router.use(cameraRouter);
 router.use(telemetryRouter);
 router.use(mapRouter);
+router.use(homeRouter);
 
 export default router;

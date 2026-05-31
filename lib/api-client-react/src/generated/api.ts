@@ -27,11 +27,13 @@ import type {
   CameraInfo,
   CommandResult,
   HealthStatus,
+  HomeState,
   LidarScan,
   MapRecordingInput,
   MapState,
   RoverCommandInput,
   RoverStatus,
+  RthStatus,
   SensorData,
   TelemetrySnapshot,
   Waypoint,
@@ -1235,6 +1237,293 @@ export const useClearMapPath = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getClearMapPathMutationOptions(options));
+    }
+
+export const getGetHomePositionUrl = () => {
+
+
+
+
+  return `/api/rover/home`
+}
+
+/**
+ * @summary Get the saved home position
+ */
+export const getHomePosition = async ( options?: RequestInit): Promise<HomeState> => {
+
+  return customFetch<HomeState>(getGetHomePositionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetHomePositionQueryKey = () => {
+    return [
+    `/api/rover/home`
+    ] as const;
+    }
+
+
+export const getGetHomePositionQueryOptions = <TData = Awaited<ReturnType<typeof getHomePosition>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHomePosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetHomePositionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getHomePosition>>> = ({ signal }) => getHomePosition({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getHomePosition>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetHomePositionQueryResult = NonNullable<Awaited<ReturnType<typeof getHomePosition>>>
+export type GetHomePositionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the saved home position
+ */
+
+export function useGetHomePosition<TData = Awaited<ReturnType<typeof getHomePosition>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getHomePosition>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetHomePositionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSetHomePositionUrl = () => {
+
+
+
+
+  return `/api/rover/home/set`
+}
+
+/**
+ * @summary Save current rover position as home
+ */
+export const setHomePosition = async ( options?: RequestInit): Promise<HomeState> => {
+
+  return customFetch<HomeState>(getSetHomePositionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getSetHomePositionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setHomePosition>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setHomePosition>>, TError,void, TContext> => {
+
+const mutationKey = ['setHomePosition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setHomePosition>>, void> = () => {
+
+
+          return  setHomePosition(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetHomePositionMutationResult = NonNullable<Awaited<ReturnType<typeof setHomePosition>>>
+
+    export type SetHomePositionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save current rover position as home
+ */
+export const useSetHomePosition = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setHomePosition>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setHomePosition>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getSetHomePositionMutationOptions(options));
+    }
+
+export const getInitiateRthUrl = () => {
+
+
+
+
+  return `/api/rover/rth`
+}
+
+/**
+ * @summary Begin return-to-home sequence
+ */
+export const initiateRth = async ( options?: RequestInit): Promise<RthStatus> => {
+
+  return customFetch<RthStatus>(getInitiateRthUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getInitiateRthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateRth>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof initiateRth>>, TError,void, TContext> => {
+
+const mutationKey = ['initiateRth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof initiateRth>>, void> = () => {
+
+
+          return  initiateRth(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InitiateRthMutationResult = NonNullable<Awaited<ReturnType<typeof initiateRth>>>
+
+    export type InitiateRthMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Begin return-to-home sequence
+ */
+export const useInitiateRth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateRth>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof initiateRth>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getInitiateRthMutationOptions(options));
+    }
+
+export const getAbortRthUrl = () => {
+
+
+
+
+  return `/api/rover/rth/abort`
+}
+
+/**
+ * @summary Abort return-to-home sequence
+ */
+export const abortRth = async ( options?: RequestInit): Promise<CommandResult> => {
+
+  return customFetch<CommandResult>(getAbortRthUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getAbortRthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof abortRth>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof abortRth>>, TError,void, TContext> => {
+
+const mutationKey = ['abortRth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof abortRth>>, void> = () => {
+
+
+          return  abortRth(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AbortRthMutationResult = NonNullable<Awaited<ReturnType<typeof abortRth>>>
+
+    export type AbortRthMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Abort return-to-home sequence
+ */
+export const useAbortRth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof abortRth>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof abortRth>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAbortRthMutationOptions(options));
     }
 
 export const getAddWaypointUrl = () => {

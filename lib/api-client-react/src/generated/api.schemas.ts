@@ -212,3 +212,25 @@ export interface MapRecordingInput {
   active: boolean;
 }
 
+export interface HomeState {
+  set: boolean;
+  /** Home X in meters */
+  x: number;
+  /** Home Y in meters */
+  y: number;
+  /** @nullable */
+  setAt: string | null;
+}
+
+export interface RthStatus {
+  active: boolean;
+  /** 0-100 progress percent */
+  progressPct: number;
+  /** @nullable */
+  etaSeconds: number | null;
+  startX: number;
+  startY: number;
+  homeX: number;
+  homeY: number;
+}
+
