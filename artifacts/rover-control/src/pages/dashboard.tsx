@@ -19,9 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Battery, Thermometer, Wind, Bluetooth, BluetoothOff, Radio, Target,
   Circle, Square, MapPin, ZoomIn, ZoomOut, Navigation, RotateCcw,
-  Grab, Home, Camera, WifiOff, Activity, Crosshair, Settings, Map,
-  ChevronRight,
+  Grab, Home, WifiOff, Activity, Crosshair, Settings, Map,
 } from "lucide-react";
+import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 
 interface PathPoint { x: number; y: number; headingDeg: number; speed: number; timestamp: string; }
 interface Waypoint { id: string; label: string; x: number; y: number; timestamp: string; }
@@ -636,7 +636,26 @@ export default function Dashboard() {
 
           {/* Arm tab */}
           {rightTab === "arm" && (
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* 3D Visualizer */}
+              <div className="h-[200px] shrink-0 border-b border-border bg-[#060606] relative">
+                <ArmVisualizer3D
+                  axes={axes}
+                  gripping={armQuery.data?.gripping ?? false}
+                  className="w-full h-full"
+                />
+                <div className="absolute top-1.5 left-1.5 text-[8px] text-muted-foreground/40 pointer-events-none select-none">
+                  DRAG to orbit · SCROLL to zoom
+                </div>
+                <div className="absolute top-1.5 right-1.5 flex items-center gap-1 pointer-events-none">
+                  <span className={`text-[9px] font-mono ${armQuery.data?.moving ? "text-yellow-400 animate-pulse" : "text-muted-foreground/40"}`}>
+                    {armQuery.data?.moving ? "● MOVING" : "○ HOLD"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div className="flex-1 overflow-y-auto p-3 space-y-3">
               {/* Arm header */}
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-muted-foreground uppercase">6-Axis Manipulator</span>
@@ -692,6 +711,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
               </div>
             </div>
           )}
