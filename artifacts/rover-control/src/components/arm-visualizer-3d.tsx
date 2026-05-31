@@ -37,11 +37,11 @@ function ArmVisualizer2D({ axes, gripping, className }: Props) {
       if (!ctx) return;
 
       // Background
-      ctx.fillStyle = "#060606";
+      ctx.fillStyle = "#FFCBA4";
       ctx.fillRect(0, 0, W, H);
 
       // Grid
-      ctx.strokeStyle = "rgba(30,30,30,0.8)"; ctx.lineWidth = 0.5;
+      ctx.strokeStyle = "rgba(200,140,100,0.4)"; ctx.lineWidth = 0.5;
       for (let x = 0; x < W; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
       for (let y = 0; y < H; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
@@ -204,8 +204,8 @@ function ArmVisualizer3DInner({ axes, gripping, className }: Props) {
     const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 50);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060606);
-    scene.fog = new THREE.FogExp2(0x060606, 0.12);
+    scene.background = new THREE.Color(0xFFCBA4);
+    scene.fog = new THREE.FogExp2(0xFFCBA4, 0.10);
 
     scene.add(new THREE.AmbientLight(0x202428, 3.5));
     const sun = new THREE.DirectionalLight(0xffd090, 2.8);
@@ -216,9 +216,9 @@ function ArmVisualizer3DInner({ axes, gripping, className }: Props) {
     const fill = new THREE.DirectionalLight(0x00e676, 0.45); fill.position.set(-3, 2, -3); scene.add(fill);
     const rim = new THREE.DirectionalLight(0x4488ff, 0.3); rim.position.set(0, -2, -4); scene.add(rim);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.95 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.MeshStandardMaterial({ color: 0xF5B08A, roughness: 0.9, metalness: 0.05 }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-    scene.add(new THREE.GridHelper(6, 24, 0x1a1a1a, 0x111111));
+    scene.add(new THREE.GridHelper(6, 24, 0xD4845A, 0xE8A07A));
 
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 0.12, 32), new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.95, roughness: 0.08 }));
     base.position.y = 0.06; base.castShadow = true; scene.add(base);
