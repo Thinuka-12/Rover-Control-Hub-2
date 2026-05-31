@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
+import { useProximityAlarm } from "@/hooks/use-proximity-alarm";
 
 interface PathPoint { x: number; y: number; headingDeg: number; speed: number; timestamp: string; }
 interface Waypoint { id: string; label: string; x: number; y: number; timestamp: string; }
@@ -59,6 +60,11 @@ export default function Dashboard() {
   const [rightTab, setRightTab] = useState<RightTab>("sensors");
   const [centerView, setCenterView] = useState<CenterView>("map");
   const [activeKey, setActiveKey] = useState<string | null>(null);
+
+  // ── Proximity alarm ──────────────────────────────────────────────────────────
+  const [alarmThreshold, setAlarmThreshold] = useState(600);
+  const [alarmEnabled, setAlarmEnabled] = useState(true);
+  const { alarming, level: alarmLevel, closestMm } = useProximityAlarm(lidarData, alarmThreshold, alarmEnabled);
 
   // ── Map state ────────────────────────────────────────────────────────────────
   const [localPath, setLocalPath] = useState<PathPoint[]>([]);
@@ -344,6 +350,18 @@ export default function Dashboard() {
         </div>
 
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {/* Proximity alarm badge */}
+          {alarming && (
+            <span className={`flex items-center gap-1.5 text-[10px] font-bold border rounded px-2 py-0.5 shrink-0
+              ${alarmLevel === "critical"
+                ? "text-red-300 border-red-500 bg-red-500/20 animate-pulse"
+                : "text-orange-300 border-orange-500/70 bg-orange-500/10 animate-pulse"
+              }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${alarmLevel === "critical" ? "bg-red-400" : "bg-orange-400"}`} />
+              ⚠ OBSTACLE {closestMm != null ? `${Math.round(closestMm)}mm` : ""}
+            </span>
+          )}
+
           {/* Recording indicator */}
           {recording && (
             <span className="flex items-center gap-1 text-[10px] text-red-400 animate-pulse border border-red-500/40 rounded px-2 py-0.5">
@@ -503,9 +521,29 @@ export default function Dashboard() {
               <Map className="w-3 h-3" /> MAP
             </button>
             <button onClick={() => setCenterView("lidar")}
-              className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
-              <Target className="w-3 h-3" /> LIDAR
+              className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${alarming
+                ? alarmLevel === "critical" ? "bg-red-500/20 text-red-400 border border-red-500/70" : "bg-orange-500/10 text-orange-400 border border-orange-500/50"
+                : centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
+              <Target className="w-3 h-3" /> LIDAR {alarming && <span className="animate-pulse">⚠</span>}
             </button>
+            {centerView === "lidar" && (
+              <div className="ml-auto flex items-center gap-2">
+                {/* Alarm on/off */}
+                <button
+                  onClick={() => setAlarmEnabled((e) => !e)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold transition-colors ${alarmEnabled ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-border text-muted-foreground"}`}
+                >
+                  ⚠ ALARM
+                </button>
+                {/* Threshold control */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] text-muted-foreground font-mono">DIST</span>
+                  <button onClick={() => setAlarmThreshold((t) => Math.max(100, t - 100))} className="w-4 h-4 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-[10px]">−</button>
+                  <span className="text-[10px] font-mono text-primary w-12 text-center">{alarmThreshold}mm</span>
+                  <button onClick={() => setAlarmThreshold((t) => Math.min(3000, t + 100))} className="w-4 h-4 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-[10px]">+</button>
+                </div>
+              </div>
+            )}
             {centerView === "map" && (
               <div className="ml-auto flex items-center gap-1">
                 <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-1 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground"><ZoomIn className="w-3 h-3" /></button>
@@ -520,7 +558,12 @@ export default function Dashboard() {
           </div>
 
           {/* Center view */}
-          <div className="flex-1 relative min-h-0 bg-[#060606]">
+          <div className={`flex-1 relative min-h-0 bg-[#060606] transition-all ${alarming ? alarmLevel === "critical" ? "ring-2 ring-inset ring-red-500/80" : "ring-2 ring-inset ring-orange-500/50" : ""}`}>
+            {/* Alarm flash overlay */}
+            {alarming && (
+              <div className={`absolute inset-0 pointer-events-none z-10 animate-pulse
+                ${alarmLevel === "critical" ? "bg-red-500/8" : "bg-orange-500/5"}`} />
+            )}
             {/* MAP */}
             <div ref={mapContainerRef}
               className={`absolute inset-0 cursor-crosshair ${centerView === "map" ? "" : "hidden"}`}
