@@ -22,7 +22,6 @@ import {
   Grab, Home, WifiOff, Activity, Crosshair, Settings, Map,
 } from "lucide-react";
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
-import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
 
 interface PathPoint { x: number; y: number; headingDeg: number; speed: number; timestamp: string; }
 interface Waypoint { id: string; label: string; x: number; y: number; timestamp: string; }
@@ -80,6 +79,8 @@ export default function Dashboard() {
   const primaryCameraUrl = cameraFeeds.find((f) => f.url && f.status === "connected")?.url || effectiveCameraUrl || "";
 
   // ── Canvas refs ──────────────────────────────────────────────────────────────
+  const lidarCanvasRef = useRef<HTMLCanvasElement>(null);
+  const lidarAnimRef = useRef<number>(0);
   const mapCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapAnimRef = useRef<number>(0);
@@ -126,6 +127,42 @@ export default function Dashboard() {
     return () => clearInterval(iv);
   }, [recording]);
 
+  // ── LIDAR canvas ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const canvas = lidarCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const draw = () => {
+      const S = canvas.width, C = S / 2, maxD = 5000;
+      ctx.fillStyle = "#060606"; ctx.fillRect(0, 0, S, S);
+      for (let i = 1; i <= 4; i++) {
+        ctx.beginPath(); ctx.arc(C, C, (C / 4) * i, 0, Math.PI * 2);
+        ctx.strokeStyle = i === 4 ? "#2a2a2a" : "#181818"; ctx.lineWidth = 1; ctx.stroke();
+      }
+      ctx.strokeStyle = "#181818"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(C, 0); ctx.lineTo(C, S); ctx.moveTo(0, C); ctx.lineTo(S, C); ctx.stroke();
+      // Sweep
+      const sw = ((Date.now() % 3000) / 3000) * Math.PI * 2;
+      const grd = ctx.createRadialGradient(C, C, 0, C, C, C);
+      grd.addColorStop(0, "rgba(255,176,0,0.10)"); grd.addColorStop(1, "rgba(255,176,0,0.01)");
+      ctx.fillStyle = grd; ctx.beginPath(); ctx.moveTo(C, C);
+      ctx.arc(C, C, C, sw - 0.6, sw); ctx.closePath(); ctx.fill();
+      // Points
+      lidarData?.points?.forEach((pt) => {
+        if (pt.distanceMm <= 0 || pt.distanceMm >= maxD) return;
+        const r = (pt.distanceMm / maxD) * C;
+        const rad = (pt.angle - 90) * (Math.PI / 180);
+        const alpha = Math.min(1, pt.quality / 200);
+        ctx.fillStyle = pt.distanceMm < 600 ? `rgba(255,60,60,${alpha})` : `rgba(255,176,0,${alpha})`;
+        ctx.beginPath(); ctx.arc(C + r * Math.cos(rad), C + r * Math.sin(rad), pt.distanceMm < 600 ? 3 : 2, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.fillStyle = "#00e676"; ctx.beginPath(); ctx.arc(C, C, 4, 0, Math.PI * 2); ctx.fill();
+      lidarAnimRef.current = requestAnimationFrame(draw);
+    };
+    lidarAnimRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(lidarAnimRef.current);
+  }, [lidarData]);
 
   // ── Map canvas ────────────────────────────────────────────────────────────────
   const currentPos = wsPos ?? mapStateQuery.data?.position ?? { x: 0, y: 0, headingDeg: 0, timestamp: "" };
@@ -527,9 +564,17 @@ export default function Dashboard() {
               onMouseDown={onMapMouseDown} onMouseMove={onMapMouseMove} onMouseUp={onMapMouseUp} onMouseLeave={onMapMouseUp} onWheel={onMapWheel}>
               <canvas ref={mapCanvasRef} className="w-full h-full" />
             </div>
-            {/* LIDAR 3D */}
-            <div className={`absolute inset-0 ${centerView === "lidar" ? "" : "hidden"}`}>
-              <LidarVisualizer3D lidarData={lidarData} className="w-full h-full" />
+            {/* LIDAR */}
+            <div className={`absolute inset-0 flex items-center justify-center ${centerView === "lidar" ? "" : "hidden"}`}>
+              <div className="relative">
+                <canvas ref={lidarCanvasRef} width={420} height={420} className="rounded-full border border-border" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[9px] text-muted-foreground/30 pointer-events-none">LIDAR</div>
+                {/* Distance labels */}
+                {[1250, 2500, 3750, 5000].map((d, i) => (
+                  <span key={d} className="absolute text-[8px] text-muted-foreground/40 font-mono"
+                    style={{ left: "50%", top: `${50 - (i + 1) * 12.5}%`, transform: "translateX(4px)" }}>{d}mm</span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
