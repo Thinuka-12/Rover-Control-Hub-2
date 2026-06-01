@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import {
-  useGetAutonomousStatus, useToggleAutonomousMode,
-  useGetHomePosition, useSetHomePosition, useInitiateRth, useAbortRth,
-  AutonomousToggleInputMode,
+  useGetAutonomousStatus, useToggleAutonomousMode, useAbortRth,
+  AutonomousToggleInputMode, type HomeState,
 } from "@workspace/api-client-react";
 import { X, Home, Navigation, Radar, Map, Eye, RotateCcw, AlertTriangle, Play, Square } from "lucide-react";
 
@@ -12,9 +11,18 @@ interface Props {
   currentPos: { x: number; y: number; headingDeg: number };
   waypoints: { id: string; label: string; x: number; y: number }[];
   canAutonom: boolean;
+  homeData: HomeState | null;
+  onHomeRefresh: () => void;
 }
 
-const MODES: { mode: AutonomousToggleInputMode; label: string; icon: React.ReactNode; color: string; description: string; detail: string }[] = [
+const MODES: {
+  mode: AutonomousToggleInputMode;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+  description: string;
+  detail: string;
+}[] = [
   {
     mode: "exploring",
     label: "EXPLORE",
@@ -37,7 +45,7 @@ const MODES: { mode: AutonomousToggleInputMode; label: string; icon: React.React
     icon: <Eye className="w-4 h-4" />,
     color: "#4fc3f7",
     description: "Track a designated target",
-    detail: "Vision-based target lock with proximity maintain distance",
+    detail: "Vision-based target lock maintaining set distance",
   },
   {
     mode: "homing",
@@ -49,25 +57,25 @@ const MODES: { mode: AutonomousToggleInputMode; label: string; icon: React.React
   },
 ];
 
-export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: Props) {
+export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, homeData, onHomeRefresh }: Props) {
   const autoQuery = useGetAutonomousStatus({ query: { refetchInterval: 1000 } as never });
-  const homeQuery = useGetHomePosition({ query: { refetchInterval: 2000 } as never });
   const toggleAuto = useToggleAutonomousMode();
-  const setHomeMut = useSetHomePosition();
-  const initiateRth = useInitiateRth();
-  const abortRth = useAbortRth();
+  const abortRthMut = useAbortRth();
 
   const auto = autoQuery.data;
-  const home = homeQuery.data;
+  const isEnabled = auto?.enabled ?? false;
+  const currentMode = auto?.mode ?? "idle";
+  const modeColor = MODES.find((m) => m.mode === currentMode)?.color ?? "#666";
 
   const [rthProgress, setRthProgress] = useState(0);
   const [rthActive, setRthActive] = useState(false);
   const [rthEta, setRthEta] = useState<number | null>(null);
+
   const [missionPlan, setMissionPlan] = useState<string[]>([]);
   const [missionRunning, setMissionRunning] = useState(false);
-  const [missionIdx, setMissionIdx] = useState(0);
+  const [missionIdx] = useState(0);
 
-  // Poll RTH progress from response
+  // Poll RTH progress
   useEffect(() => {
     if (!rthActive) return;
     const iv = setInterval(() => {
@@ -76,14 +84,15 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
         .then((d) => {
           setRthProgress(d.progressPct);
           setRthEta(d.etaSeconds);
-          if (!d.active && d.progressPct >= 99) {
+          if (!d.active) {
             setRthActive(false);
-            void toggleAuto.mutateAsync({ data: { enabled: false, mode: "homing" as AutonomousToggleInputMode } });
+            toggleAuto.mutate({ data: { enabled: false, mode: "homing" as AutonomousToggleInputMode } });
           }
         })
-        .catch(() => { /* ignore */ });
+        .catch(() => undefined);
     }, 600);
     return () => clearInterval(iv);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rthActive]);
 
   const setMode = (mode: AutonomousToggleInputMode) => {
@@ -91,56 +100,64 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
     toggleAuto.mutate({ data: { enabled: true, mode } });
   };
 
-  const abort = () => {
+  const abortAll = () => {
     if (!canAutonom) return;
     toggleAuto.mutate({ data: { enabled: false, mode: (auto?.mode ?? "exploring") as AutonomousToggleInputMode } });
     if (rthActive) {
-      abortRth.mutate(undefined as never);
+      abortRthMut.mutate(undefined as never);
       setRthActive(false); setRthProgress(0); setRthEta(null);
     }
-    setMissionRunning(false); setMissionIdx(0);
+    setMissionRunning(false);
   };
 
   const doSetHome = () => {
     if (!canAutonom) return;
-    setHomeMut.mutate({ data: { x: currentPos.x, y: currentPos.y } } as never);
+    fetch("/api/rover/home/set", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ x: currentPos.x, y: currentPos.y }),
+    })
+      .then(() => onHomeRefresh())
+      .catch(() => undefined);
   };
 
   const doRth = () => {
-    if (!canAutonom || !home?.set) return;
-    initiateRth.mutate({ data: { x: currentPos.x, y: currentPos.y } } as never, {
-      onSuccess: () => { setRthActive(true); setRthProgress(0); setMode("homing"); },
-    });
+    if (!canAutonom || !homeData?.set) return;
+    fetch("/api/rover/rth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ x: currentPos.x, y: currentPos.y }),
+    })
+      .then(() => { setRthActive(true); setRthProgress(0); setMode("homing"); })
+      .catch(() => undefined);
+  };
+
+  const abortRth = () => {
+    abortRthMut.mutate(undefined as never);
+    setRthActive(false); setRthProgress(0); setRthEta(null);
   };
 
   const addToMission = (id: string) => {
     if (!missionPlan.includes(id)) setMissionPlan((p) => [...p, id]);
   };
-
-  const removeFromMission = (id: string) => {
-    setMissionPlan((p) => p.filter((i) => i !== id));
-  };
+  const removeFromMission = (id: string) => setMissionPlan((p) => p.filter((i) => i !== id));
 
   const executeMission = () => {
     if (missionPlan.length === 0 || !canAutonom) return;
     setMissionRunning(true);
-    setMissionIdx(0);
     setMode("following");
   };
 
   const stopMission = () => {
     setMissionRunning(false);
-    setMissionIdx(0);
-    abort();
+    abortAll();
   };
 
-  const isEnabled = auto?.enabled ?? false;
-  const currentMode = auto?.mode ?? "idle";
-
-  const modeColor = MODES.find((m) => m.mode === currentMode)?.color ?? "#666";
-
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/60 backdrop-blur-sm font-mono" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-end bg-black/60 backdrop-blur-sm font-mono"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="h-full w-[420px] bg-[#080c10] border-l border-border flex flex-col overflow-hidden shadow-2xl">
 
         {/* Header */}
@@ -154,9 +171,11 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-          {/* Status Banner */}
-          <div className={`rounded border p-3 ${isEnabled ? "border-[color:var(--mc)] bg-[color:var(--mc)]/10" : "border-border bg-black/30"}`}
-            style={{ "--mc": modeColor } as React.CSSProperties}>
+          {/* ── Status banner ─────────────────────────────────────────── */}
+          <div
+            className={`rounded border p-3 ${isEnabled ? "border-[color:var(--mc)] bg-[color:var(--mc)]/10" : "border-border bg-black/30"}`}
+            style={{ "--mc": modeColor } as React.CSSProperties}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isEnabled ? "animate-pulse" : ""}`} style={{ background: isEnabled ? modeColor : "#444" }} />
@@ -165,7 +184,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
                 </span>
               </div>
               {isEnabled && (
-                <button onClick={abort} disabled={!canAutonom}
+                <button onClick={abortAll} disabled={!canAutonom}
                   className="flex items-center gap-1 px-2 py-0.5 border border-red-500/60 bg-red-500/10 text-red-400 rounded text-[10px] font-bold hover:bg-red-500/20 disabled:opacity-40">
                   <Square className="w-2.5 h-2.5 fill-current" /> ABORT
                 </button>
@@ -183,7 +202,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
             )}
           </div>
 
-          {/* ── Mode Cards ──────────────────────────────────────────────── */}
+          {/* ── Mode cards ────────────────────────────────────────────── */}
           <div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Navigation Mode</div>
             <div className="grid grid-cols-2 gap-2">
@@ -207,20 +226,22 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
             </div>
           </div>
 
-          {/* ── Return to Home ───────────────────────────────────────────── */}
+          {/* ── Return to Home ────────────────────────────────────────── */}
           <div className="border border-border rounded p-3 space-y-2.5">
             <div className="flex items-center gap-2">
               <Home className="w-3.5 h-3.5 text-[#f06292]" />
               <span className="text-[10px] font-bold text-[#f06292] tracking-wider">RETURN TO HOME</span>
             </div>
 
-            {home?.set ? (
+            {homeData?.set ? (
               <div className="text-[10px] text-muted-foreground font-mono">
-                HOME SET — <span className="text-primary">X:{home.x.toFixed(2)}m  Y:{home.y.toFixed(2)}m</span>
-                {home.setAt && <span className="ml-2 text-muted-foreground/50">{new Date(home.setAt).toLocaleTimeString()}</span>}
+                HOME SET — <span className="text-primary">X:{homeData.x.toFixed(2)}m  Y:{homeData.y.toFixed(2)}m</span>
+                {homeData.setAt && (
+                  <span className="ml-2 text-muted-foreground/50">{new Date(homeData.setAt).toLocaleTimeString()}</span>
+                )}
               </div>
             ) : (
-              <div className="text-[10px] text-muted-foreground/50">No home position set</div>
+              <div className="text-[10px] text-muted-foreground/50">No home position set — navigate to desired home spot then tap SET HOME</div>
             )}
 
             {rthActive && (
@@ -239,17 +260,21 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
                 className="flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-border rounded text-[10px] text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40 transition-colors">
                 <Navigation className="w-3 h-3" /> SET HOME HERE
               </button>
-              <button onClick={rthActive ? () => { abortRth.mutate(undefined as never); setRthActive(false); setRthProgress(0); } : doRth}
-                disabled={!canAutonom || (!home?.set && !rthActive)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 border rounded text-[10px] font-bold disabled:opacity-40 transition-colors ${rthActive
-                  ? "border-red-500/60 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                  : "border-[#f06292]/50 bg-[#f06292]/10 text-[#f06292] hover:bg-[#f06292]/20"}`}>
-                {rthActive ? <><RotateCcw className="w-3 h-3" /> ABORT RTH</> : <><Home className="w-3 h-3" /> RETURN HOME</>}
-              </button>
+              {rthActive ? (
+                <button onClick={abortRth} disabled={!canAutonom}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-red-500/60 bg-red-500/10 text-red-400 rounded text-[10px] font-bold hover:bg-red-500/20 disabled:opacity-40">
+                  <RotateCcw className="w-3 h-3" /> ABORT RTH
+                </button>
+              ) : (
+                <button onClick={doRth} disabled={!canAutonom || !homeData?.set}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-[#f06292]/50 bg-[#f06292]/10 text-[#f06292] rounded text-[10px] font-bold hover:bg-[#f06292]/20 disabled:opacity-40 transition-colors">
+                  <Home className="w-3 h-3" /> RETURN HOME
+                </button>
+              )}
             </div>
           </div>
 
-          {/* ── Mission Plan ─────────────────────────────────────────────── */}
+          {/* ── Mission Plan ──────────────────────────────────────────── */}
           <div className="border border-border rounded p-3 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -261,7 +286,6 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
               )}
             </div>
 
-            {/* Waypoint queue */}
             {missionPlan.length === 0 ? (
               <div className="text-[10px] text-muted-foreground/40 py-2 text-center">No waypoints queued — add from list below</div>
             ) : (
@@ -286,7 +310,6 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
               </div>
             )}
 
-            {/* Add waypoints */}
             {!missionRunning && waypoints.length > 0 && (
               <div className="space-y-1">
                 <div className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Available waypoints</div>
@@ -303,30 +326,35 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom }: 
               </div>
             )}
 
-            {/* Execute / Stop mission */}
+            {waypoints.length === 0 && (
+              <div className="text-[9px] text-muted-foreground/30 text-center py-1">Record a path and drop waypoints in the map view first</div>
+            )}
+
             {missionPlan.length > 0 && (
               <button onClick={missionRunning ? stopMission : executeMission} disabled={!canAutonom}
                 className={`w-full flex items-center justify-center gap-2 py-2 border rounded text-[10px] font-bold disabled:opacity-40 transition-colors ${missionRunning
                   ? "border-red-500/60 bg-red-500/10 text-red-400 hover:bg-red-500/20"
                   : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"}`}>
-                {missionRunning ? <><Square className="w-3 h-3 fill-current" /> ABORT MISSION</> : <><Play className="w-3 h-3 fill-current" /> EXECUTE MISSION</>}
+                {missionRunning
+                  ? <><Square className="w-3 h-3 fill-current" /> ABORT MISSION</>
+                  : <><Play className="w-3 h-3 fill-current" /> EXECUTE MISSION ({missionPlan.length} pts)</>}
               </button>
             )}
           </div>
 
-          {/* ── System Settings ───────────────────────────────────────────── */}
+          {/* ── System info ───────────────────────────────────────────── */}
           <div className="border border-border rounded p-3 space-y-2">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">System Settings</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Autonomous System</div>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-muted-foreground">Obstacle avoidance</span>
               <span className={`text-[10px] font-bold ${auto?.obstacleAvoidance ? "text-[#00e676]" : "text-red-400"}`}>
-                {auto?.obstacleAvoidance ? "ENABLED" : "DISABLED"}
+                {auto?.obstacleAvoidance ? "ACTIVE" : "OFF"}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-muted-foreground">Path planning</span>
               <span className={`text-[10px] font-bold ${auto?.pathPlanning ? "text-[#00e676]" : "text-red-400"}`}>
-                {auto?.pathPlanning ? "ENABLED" : "DISABLED"}
+                {auto?.pathPlanning ? "ACTIVE" : "OFF"}
               </span>
             </div>
           </div>

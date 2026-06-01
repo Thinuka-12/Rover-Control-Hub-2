@@ -3,12 +3,16 @@ import {
   useGetTelemetry, useGetLidarData, useSendRoverCommand, useStopRover,
   useToggleAutonomousMode, useGetArmStatus, useSendArmCommand, useHomeArm,
   useGetMapState, useSetMapRecording, useClearMapPath, useAddWaypoint,
+  useGetHomePosition,
   RoverCommandInputCommand, AutonomousToggleInputMode,
 } from "@workspace/api-client-react";
 import { useRoverWs } from "@/hooks/use-rover-ws";
 import { useBluetooth } from "@/hooks/use-bluetooth";
 import { useCameraFeeds } from "@/hooks/use-camera-feeds";
 import { useLocalSettings } from "@/hooks/use-local-settings";
+import { useOperatorRole } from "@/hooks/use-operator-role";
+import { OperatorSelector } from "@/components/operator-selector";
+import { AutonomousPanel } from "@/components/autonomous-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -19,7 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Battery, Thermometer, Wind, Bluetooth, BluetoothOff, Radio, Target,
   Circle, Square, MapPin, ZoomIn, ZoomOut, Navigation, RotateCcw,
-  Grab, Home, WifiOff, Activity, Crosshair, Settings, Map,
+  Grab, Home, WifiOff, Activity, Crosshair, Settings, Map, Shield, Eye,
 } from "lucide-react";
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
@@ -65,6 +69,13 @@ export default function Dashboard() {
   const [alarmThreshold, setAlarmThreshold] = useState(600);
   const [alarmEnabled, setAlarmEnabled] = useState(true);
   const { alarming, level: alarmLevel, closestMm } = useProximityAlarm(lidarData, alarmThreshold, alarmEnabled);
+
+  // ── Operator role ─────────────────────────────────────────────────────────────
+  const { operator, hasRole, assignRole, canDrive, canArm, canAutonom, currentMeta } = useOperatorRole();
+  const [showAutoPanel, setShowAutoPanel] = useState(false);
+
+  // ── Home position ─────────────────────────────────────────────────────────────
+  const homeQuery = useGetHomePosition({ query: { refetchInterval: 5000 } as never });
 
   // ── Map state ────────────────────────────────────────────────────────────────
   const [localPath, setLocalPath] = useState<PathPoint[]>([]);
@@ -177,6 +188,20 @@ export default function Dashboard() {
         ctx.strokeStyle = "rgba(0,229,255,0.3)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(wx, wy, 8, 0, Math.PI * 2); ctx.stroke();
         ctx.fillStyle = "#00e5ff"; ctx.font = "bold 9px monospace"; ctx.fillText(wp.label, wx + 6, wy - 4);
       }
+      // Home beacon
+      const home = homeQuery.data;
+      if (home?.set) {
+        const hx = ox + home.x * mapScale, hy = oy - home.y * mapScale;
+        // Outer pulse ring
+        ctx.strokeStyle = "rgba(240,98,146,0.25)"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(hx, hy, 14, 0, Math.PI * 2); ctx.stroke();
+        // Inner ring
+        ctx.strokeStyle = "#f06292"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(hx, hy, 7, 0, Math.PI * 2); ctx.stroke();
+        // H marker
+        ctx.fillStyle = "#f06292"; ctx.textAlign = "center"; ctx.font = "bold 8px monospace"; ctx.fillText("H", hx, hy + 3);
+        ctx.textAlign = "left"; ctx.font = "8px monospace"; ctx.fillText("HOME", hx + 10, hy - 4);
+      }
       // Scale bar
       const bm = mapScale >= 40 ? 5 : mapScale >= 20 ? 10 : 20;
       const bp = bm * mapScale;
@@ -201,7 +226,7 @@ export default function Dashboard() {
     };
     mapAnimRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(mapAnimRef.current);
-  }, [localPath, localWaypoints, currentPos, mapScale, mapPan, followRover]);
+  }, [localPath, localWaypoints, currentPos, mapScale, mapPan, followRover, homeQuery.data]);
 
   // ── Resize map canvas ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -216,6 +241,7 @@ export default function Dashboard() {
 
   // ── Keyboard drive ────────────────────────────────────────────────────────────
   const handleDrive = useCallback((cmd: RoverCommandInputCommand | "stop") => {
+    if (!canDrive) return;
     if (cmd === "stop") { stopRover.mutate(); if (btStatus === "connected") btSend("STOP"); }
     else { sendCommand.mutate({ data: { command: cmd, speed: 80, duration: null } }); if (btStatus === "connected") btSend(cmd.toUpperCase()); }
   }, [sendCommand, stopRover, btStatus, btSend]);
@@ -290,6 +316,7 @@ export default function Dashboard() {
 
   // ── JSX ───────────────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="flex flex-col h-screen w-screen bg-background overflow-hidden font-mono text-xs">
 
       {/* ── HEADER STATUS BAR ─────────────────────────────────────────────── */}
@@ -369,29 +396,29 @@ export default function Dashboard() {
             </span>
           )}
 
-          {/* Autonomous */}
-          <div className="flex items-center gap-1.5 border border-border rounded px-2 py-0.5">
-            <span className="text-[10px] text-muted-foreground">AUTO</span>
-            <Switch
-              checked={autoData?.enabled ?? false}
-              onCheckedChange={(c) => toggleAuto.mutate({ data: { enabled: c, mode: (autoData?.mode === "idle" ? "exploring" : (autoData?.mode ?? "exploring")) as AutonomousToggleInputMode } })}
-              className="scale-75 origin-left"
-            />
-            <Select
-              value={autoData?.mode || "idle"}
-              onValueChange={(v) => toggleAuto.mutate({ data: { enabled: autoData?.enabled ?? false, mode: v as AutonomousToggleInputMode } })}
-              disabled={!autoData?.enabled}
-            >
-              <SelectTrigger className="h-5 w-24 text-[10px] bg-background border-border px-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["idle", "exploring", "homing", "following", "patrolling"].map((m) => (
-                  <SelectItem key={m} value={m} className="text-[11px]">{m.toUpperCase()}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Autonomous panel button */}
+          <button
+            onClick={() => setShowAutoPanel(true)}
+            className={`flex items-center gap-1.5 px-2 py-0.5 border rounded text-[10px] font-bold transition-colors shrink-0 ${
+              autoData?.enabled
+                ? "border-primary/70 text-primary bg-primary/10"
+                : "border-border text-muted-foreground hover:text-primary hover:border-primary/50"
+            }`}
+          >
+            <Navigation className="w-3 h-3" />
+            AUTO {autoData?.enabled ? `● ${(autoData.mode ?? "").toUpperCase()}` : "OFF"}
+          </button>
+
+          {/* Operator role badge */}
+          <button
+            onClick={() => assignRole(operator?.role ?? "pilot", operator?.name ?? "")}
+            className="flex items-center gap-1.5 px-2 py-0.5 border border-border rounded shrink-0 hover:border-primary/50 transition-colors"
+            title={`${currentMeta.label} — ${operator?.name ?? "unidentified"}`}
+          >
+            <Shield className="w-3 h-3" style={{ color: currentMeta.color }} />
+            <span className="text-[10px] font-bold" style={{ color: currentMeta.color }}>{currentMeta.label}</span>
+            {operator && <span className="text-[9px] text-muted-foreground/60 ml-0.5">{operator.name.slice(0, 10)}</span>}
+          </button>
 
           {/* Nav links */}
           <a href="/settings" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary px-2 py-0.5 border border-border rounded">
@@ -716,6 +743,30 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+
+    {/* ── Operator selector (first visit) ──────────────────────────────── */}
+    {!hasRole && <OperatorSelector onConfirm={assignRole} />}
+
+    {/* ── Autonomous control panel ──────────────────────────────────────── */}
+    {showAutoPanel && (
+      <AutonomousPanel
+        onClose={() => setShowAutoPanel(false)}
+        currentPos={currentPos}
+        waypoints={localWaypoints}
+        canAutonom={canAutonom}
+        homeData={homeQuery.data ?? null}
+        onHomeRefresh={() => void homeQuery.refetch()}
+      />
+    )}
+
+    {/* ── Observer overlay (no commands) ───────────────────────────────── */}
+    {hasRole && !canDrive && !canAutonom && (
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2 bg-black/80 border border-border rounded-full font-mono backdrop-blur-sm pointer-events-none">
+        <Eye className="w-3 h-3 text-muted-foreground" />
+        <span className="text-[10px] text-muted-foreground">OBSERVER MODE — Commands disabled</span>
+      </div>
+    )}
+    </>
   );
 }
 

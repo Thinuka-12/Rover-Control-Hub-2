@@ -22,7 +22,9 @@ function save(s: OperatorState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
 }
 
-const ROLE_META: Record<OperatorRole, { label: string; color: string; description: string }> = {
+export interface OperatorMeta { label: string; color: string; description: string }
+
+const ROLE_META: Record<OperatorRole, OperatorMeta> = {
   pilot: {
     label: "PILOT",
     color: "#00e676",
