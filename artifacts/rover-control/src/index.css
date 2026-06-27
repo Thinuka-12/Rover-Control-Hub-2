@@ -195,3 +195,69 @@
     pointer-events: none;
   }
 }
+
+/* ── NASA / Sci-Fi glow palette ─────────────────────────────────────── */
+:root {
+  --neon-cyan: #00f5ff;
+  --neon-blue: #0080ff;
+  --neon-green: #00e676;
+  --neon-amber: #ffb000;
+}
+
+/* Glassmorphism panel */
+.glass-panel {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 245, 255, 0.12);
+  box-shadow: 0 0 30px rgba(0, 245, 255, 0.04) inset;
+}
+
+/* Neon glow utilities */
+.glow-cyan  { box-shadow: 0 0 12px rgba(0, 245, 255, 0.35); }
+.glow-blue  { box-shadow: 0 0 12px rgba(0, 128, 255, 0.35); }
+.glow-amber { box-shadow: 0 0 12px rgba(255, 176, 0, 0.35); }
+.glow-green { box-shadow: 0 0 12px rgba(0, 230, 118, 0.35); }
+
+.text-glow-cyan  { text-shadow: 0 0 16px rgba(0, 245, 255, 0.6); }
+.text-glow-amber { text-shadow: 0 0 16px rgba(255, 176, 0, 0.6); }
+
+/* Holographic grid animation */
+@keyframes holographic-scan {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+.holo-grid {
+  background-image:
+    linear-gradient(rgba(0,245,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,245,255,0.03) 1px, transparent 1px);
+  background-size: 30px 30px;
+  animation: holographic-scan 3s linear infinite;
+}
+
+/* Neon pulse animation */
+@keyframes neon-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+.neon-pulse { animation: neon-pulse 1.5s ease-in-out infinite; }
+
+/* Scanline overlay for camera views */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none;
+}
+
+/* Arc gauge animate-in */
+@keyframes arc-fill {
+  from { stroke-dasharray: 0 1000; }
+}
+

@@ -24,10 +24,16 @@ import {
   Battery, Thermometer, Wind, Bluetooth, BluetoothOff, Radio, Target,
   Circle, Square, MapPin, ZoomIn, ZoomOut, Navigation, RotateCcw,
   Grab, Home, WifiOff, Activity, Crosshair, Settings, Map, Shield, Eye,
+  Scan, Glasses, Film,
 } from "lucide-react";
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
 import { useProximityAlarm } from "@/hooks/use-proximity-alarm";
+import { ArtifactDetection } from "@/components/artifact-detection";
+import { VrMode } from "@/components/vr-mode";
+import { MissionRecorder } from "@/components/mission-recorder";
+import { GpsPanel } from "@/components/gps-panel";
+import { ArcGauge } from "@/components/arc-gauge";
 
 interface PathPoint { x: number; y: number; headingDeg: number; speed: number; timestamp: string; }
 interface Waypoint { id: string; label: string; x: number; y: number; timestamp: string; }
@@ -73,6 +79,10 @@ export default function Dashboard() {
   // ── Operator role ─────────────────────────────────────────────────────────────
   const { operator, hasRole, assignRole, canDrive, canArm, canAutonom, currentMeta } = useOperatorRole();
   const [showAutoPanel, setShowAutoPanel] = useState(false);
+  const [showVr, setShowVr] = useState(false);
+  const [showMission, setShowMission] = useState(false);
+  const [showGps, setShowGps] = useState(false);
+  const [showArtifacts, setShowArtifacts] = useState(false);
 
   // ── Home position ─────────────────────────────────────────────────────────────
   const homeQuery = useGetHomePosition({ query: { refetchInterval: 5000 } as never });
@@ -421,6 +431,24 @@ export default function Dashboard() {
           </button>
 
           {/* Nav links */}
+          {/* Feature panel buttons */}
+          <button onClick={() => setShowArtifacts(true)}
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-cyan-500/40 text-cyan-400 rounded hover:bg-cyan-500/10 shrink-0 transition-colors">
+            <Scan className="w-3 h-3" /> AI
+          </button>
+          <button onClick={() => setShowGps(true)}
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 shrink-0 transition-colors">
+            <MapPin className="w-3 h-3" /> GPS
+          </button>
+          <button onClick={() => setShowMission(true)}
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-purple-500/40 text-purple-400 rounded hover:bg-purple-500/10 shrink-0 transition-colors">
+            <Film className="w-3 h-3" /> MISSION
+          </button>
+          <button onClick={() => setShowVr(true)}
+            className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10 shrink-0 transition-colors">
+            <Glasses className="w-3 h-3" /> VR
+          </button>
+
           <a href="/settings" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary px-2 py-0.5 border border-border rounded">
             <Settings className="w-3 h-3" />
           </a>
@@ -485,14 +513,42 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Telemetry mini */}
-          <div className="p-3 space-y-2 shrink-0">
-            <span className="text-[10px] text-muted-foreground uppercase">Telemetry</span>
-            <div>
-              <div className="flex justify-between mb-0.5"><span className="text-[10px] text-muted-foreground">Battery</span><span className="text-[10px] text-secondary font-bold">{rover?.batteryLevel ?? 0}%</span></div>
-              <Progress value={rover?.batteryLevel ?? 0} className="h-1" />
+          {/* Telemetry arc gauges */}
+          <div className="p-3 shrink-0">
+            <span className="text-[10px] text-muted-foreground uppercase block mb-2">Telemetry</span>
+            <div className="flex items-center justify-around">
+              <ArcGauge
+                value={rover?.batteryLevel ?? 0}
+                label="Battery"
+                unit="%"
+                size={82}
+                strokeWidth={7}
+                color={(rover?.batteryLevel ?? 0) <= 15 ? "#ff4444" : (rover?.batteryLevel ?? 0) <= 30 ? "#ffb000" : "#00e676"}
+              />
+              <ArcGauge
+                value={rover?.motorTemperature ?? 0}
+                max={100}
+                label="Motor °C"
+                unit="°"
+                size={82}
+                strokeWidth={7}
+                color={(rover?.motorTemperature ?? 0) >= 80 ? "#ff4444" : (rover?.motorTemperature ?? 0) >= 60 ? "#ffb000" : "#00f5ff"}
+              />
+              <ArcGauge
+                value={Math.min((rover?.speed ?? 0) * 10, 100)}
+                label="Speed"
+                unit="m/s"
+                size={82}
+                strokeWidth={7}
+                color="#0080ff"
+              />
             </div>
-            <div className="flex justify-between"><span className="text-[10px] text-muted-foreground">Wheels</span><span className="text-[10px] font-mono">{rover?.wheelCount ?? "—"}</span></div>
+            <div className="flex justify-between mt-1.5 px-1 text-[9px] text-muted-foreground">
+              <span>Wheels: <span className="text-primary font-mono">{rover?.wheelCount ?? "—"}</span></span>
+              <span className={`font-bold ${rover?.connected ? "text-green-400" : "text-red-400"}`}>
+                {rover?.connected ? "● ONLINE" : "● OFFLINE"}
+              </span>
+            </div>
           </div>
 
           {/* Path recording quick controls */}
@@ -756,6 +812,35 @@ export default function Dashboard() {
         canAutonom={canAutonom}
         homeData={homeQuery.data ?? null}
         onHomeRefresh={() => void homeQuery.refetch()}
+      />
+    )}
+
+    {/* ── Feature panels ─────────────────────────────────────────────────── */}
+    {showArtifacts && (
+      <ArtifactDetection
+        onClose={() => setShowArtifacts(false)}
+        cameraUrl={primaryCameraUrl}
+        currentPos={currentPos}
+      />
+    )}
+    {showGps && (
+      <GpsPanel
+        onClose={() => setShowGps(false)}
+        currentPos={currentPos}
+      />
+    )}
+    {showMission && (
+      <MissionRecorder
+        onClose={() => setShowMission(false)}
+        rover={rover}
+        wsStatus={wsStatus}
+      />
+    )}
+    {showVr && (
+      <VrMode
+        onClose={() => setShowVr(false)}
+        cameraUrl={primaryCameraUrl}
+        telemetry={wsTelemetry}
       />
     )}
 

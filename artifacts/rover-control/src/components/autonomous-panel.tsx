@@ -4,7 +4,7 @@ import {
   useGetAutonomousStatus, useToggleAutonomousMode, useAbortRth,
   AutonomousToggleInputMode, type HomeState,
 } from "@workspace/api-client-react";
-import { X, Home, Navigation, Radar, Map, Eye, RotateCcw, AlertTriangle, Play, Square } from "lucide-react";
+import { X, Home, Navigation, Radar, Map, Eye, RotateCcw, AlertTriangle, Play, Square, Search, Grid } from "lucide-react";
 
 interface Props {
   onClose: () => void;
@@ -16,7 +16,7 @@ interface Props {
 }
 
 const MODES: {
-  mode: AutonomousToggleInputMode;
+  mode: AutonomousToggleInputMode | string;
   label: string;
   icon: React.ReactNode;
   color: string;
@@ -55,6 +55,22 @@ const MODES: {
     description: "Return to home position",
     detail: "Navigates back to saved home coordinates using path planning",
   },
+  {
+    mode: "artifact_search",
+    label: "ARTIFACT",
+    icon: <Search className="w-4 h-4" />,
+    color: "#00f5ff",
+    description: "AI artifact search pattern",
+    detail: "Outward spiral scan with vision AI active — marks artifact positions on map",
+  },
+  {
+    mode: "area_scan",
+    label: "AREA SCAN",
+    icon: <Grid className="w-4 h-4" />,
+    color: "#cc44ff",
+    description: "Systematic area coverage",
+    detail: "Lawnmower grid pattern over defined region for full terrain mapping",
+  },
 ];
 
 export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, homeData, onHomeRefresh }: Props) {
@@ -74,6 +90,10 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
   const [missionPlan, setMissionPlan] = useState<string[]>([]);
   const [missionRunning, setMissionRunning] = useState(false);
   const [missionIdx] = useState(0);
+
+  // Scan progress for artifact_search / area_scan modes
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanActive, setScanActive] = useState(false);
 
   // Poll RTH progress
   useEffect(() => {
@@ -95,9 +115,27 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rthActive]);
 
-  const setMode = (mode: AutonomousToggleInputMode) => {
+  // Simulate scan progress for artifact_search & area_scan
+  useEffect(() => {
+    if (!scanActive) return;
+    const iv = setInterval(() => {
+      setScanProgress((p) => {
+        if (p >= 100) { setScanActive(false); return 100; }
+        return p + (0.2 + Math.random() * 0.5);
+      });
+    }, 200);
+    return () => clearInterval(iv);
+  }, [scanActive]);
+
+  const setMode = (mode: string) => {
     if (!canAutonom) return;
-    toggleAuto.mutate({ data: { enabled: true, mode } });
+    if (mode === "artifact_search" || mode === "area_scan") {
+      setScanProgress(0);
+      setScanActive(true);
+    } else {
+      setScanActive(false);
+    }
+    toggleAuto.mutate({ data: { enabled: true, mode: mode as AutonomousToggleInputMode } });
   };
 
   const abortAll = () => {
@@ -107,6 +145,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
       abortRthMut.mutate(undefined as never);
       setRthActive(false); setRthProgress(0); setRthEta(null);
     }
+    setScanActive(false); setScanProgress(0);
     setMissionRunning(false);
   };
 
@@ -153,18 +192,21 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
     abortAll();
   };
 
+  const activeModeInfo = MODES.find((m) => m.mode === currentMode);
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-end bg-black/60 backdrop-blur-sm font-mono"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="h-full w-[420px] bg-[#080c10] border-l border-border flex flex-col overflow-hidden shadow-2xl">
+      <div className="h-full w-[440px] bg-[#080c10] border-l border-border flex flex-col overflow-hidden shadow-2xl">
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-black/40 shrink-0">
           <div className="flex items-center gap-2">
             <Navigation className="w-4 h-4 text-primary" />
             <span className="font-bold text-[12px] tracking-widest text-primary">AUTONOMOUS CONTROL</span>
+            <span className="text-[9px] text-muted-foreground/50 border border-border px-1 rounded">{MODES.length} MODES</span>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
         </div>
@@ -180,7 +222,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${isEnabled ? "animate-pulse" : ""}`} style={{ background: isEnabled ? modeColor : "#444" }} />
                 <span className="text-[11px] font-bold" style={{ color: isEnabled ? modeColor : "#666" }}>
-                  {isEnabled ? currentMode.toUpperCase() : "STANDBY"}
+                  {isEnabled ? currentMode.toUpperCase().replace("_", " ") : "STANDBY"}
                 </span>
               </div>
               {isEnabled && (
@@ -192,7 +234,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
             </div>
             <div className="text-[10px] text-muted-foreground">
               {isEnabled
-                ? MODES.find((m) => m.mode === currentMode)?.detail ?? "Autonomous navigation active"
+                ? activeModeInfo?.detail ?? "Autonomous navigation active"
                 : "Select a mode below to engage autonomous operations"}
             </div>
             {!canAutonom && (
@@ -202,14 +244,34 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
             )}
           </div>
 
+          {/* Scan progress (artifact_search / area_scan) */}
+          {isEnabled && ((currentMode as string) === "artifact_search" || (currentMode as string) === "area_scan") && (
+            <div className="border border-[#00f5ff]/20 rounded p-3 space-y-2 bg-[#00f5ff]/5">
+              <div className="flex justify-between text-[10px]">
+                <span style={{ color: (currentMode as string) === "artifact_search" ? "#00f5ff" : "#cc44ff" }}>
+                  {(currentMode as string) === "artifact_search" ? "● SCANNING FOR ARTIFACTS" : "● AREA SCAN IN PROGRESS"}
+                </span>
+                <span className="text-muted-foreground">{Math.round(Math.min(scanProgress, 100))}%</span>
+              </div>
+              <Progress value={Math.min(scanProgress, 100)} className="h-1.5" />
+              <div className="text-[9px] text-muted-foreground">
+                {(currentMode as string) === "artifact_search"
+                  ? "Spiral search pattern active — AI vision online"
+                  : `Grid row ${Math.ceil(scanProgress / 10)} of 10 — systematic coverage`}
+              </div>
+            </div>
+          )}
+
           {/* ── Mode cards ────────────────────────────────────────────── */}
           <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Navigation Mode</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
+              Navigation Mode — <span className="text-primary/60">6 available</span>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               {MODES.map((m) => {
                 const active = isEnabled && currentMode === m.mode;
                 return (
-                  <button key={m.mode} onClick={() => setMode(m.mode)} disabled={!canAutonom}
+                  <button key={String(m.mode)} onClick={() => setMode(String(m.mode))} disabled={!canAutonom}
                     className={`text-left p-3 rounded border transition-all disabled:opacity-40 ${active
                       ? "border-[color:var(--mc)] bg-[color:var(--mc)]/15 shadow-inner"
                       : "border-border bg-black/30 hover:border-border/80 hover:bg-white/5"}`}
