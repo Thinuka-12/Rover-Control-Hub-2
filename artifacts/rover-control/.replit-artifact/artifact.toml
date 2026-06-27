@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Rover Control Dashboard"
+title = "Tec-code//Rover"
 version = "1.0.0"
 id = "artifacts/rover-control"
 router = "path"

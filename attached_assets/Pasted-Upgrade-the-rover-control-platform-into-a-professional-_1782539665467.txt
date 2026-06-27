@@ -1,0 +1,91 @@
+Upgrade the rover control platform into a professional AI-powered autonomous exploration and artifact detection system.
+
+Keep ALL existing functionality and add the following features.
+
+AI ARTIFACT DETECTION:
+
+* Integrate YOLOv8-ready detection architecture.
+* Create a live artifact detection panel.
+* Display detected object name, confidence percentage, timestamp, and camera source.
+* Draw bounding boxes over the live video feed.
+* Maintain artifact detection history.
+* Create artifact markers on the 3D map.
+* Store detected artifact positions.
+
+VR MODE:
+
+* Add Mobile VR Box mode.
+* Add fullscreen immersive camera view.
+* Add gyroscope head tracking support.
+* Create pan/tilt camera controls driven by phone orientation.
+* Display VR connection status.
+* Display yaw, pitch, and roll values.
+
+CAMERA SYSTEM:
+
+* Support multiple camera feeds.
+* Camera switching controls.
+* Snapshot capture.
+* Video recording controls.
+* Camera health monitoring.
+* PTZ camera control.
+
+ADVANCED AUTONOMOUS MODES:
+
+* Explore Mode.
+* Patrol Mode.
+* Follow Path Mode.
+* Artifact Search Mode.
+* Area Scan Mode.
+* Return To Home Mode.
+* Dynamic obstacle avoidance.
+* AI route planning status.
+
+3D MAPPING:
+
+* Upgrade LiDAR map to a real-time 3D exploration map.
+* Display explored and unexplored regions.
+* Display robot position.
+* Display breadcrumb trails.
+* Display artifact markers.
+* Add map zoom and orbit controls.
+
+GPS FEATURES:
+
+* Live GPS coordinates.
+* GPS breadcrumb trail.
+* Geofence zones.
+* Home location marker.
+* Mission route export.
+* Artifact coordinate logging.
+
+TELEMETRY:
+
+* Battery percentage.
+* Battery health.
+* Motor status.
+* ESP32 connection status.
+* WiFi signal.
+* CPU and RAM monitoring.
+* Sensor diagnostics.
+
+MISSION SYSTEM:
+
+* Mission recording.
+* Mission playback.
+* Timeline replay.
+* Event history.
+* Screenshot capture.
+* Mission report export.
+
+UI DESIGN:
+
+* Redesign the dashboard to look like a futuristic rover command center.
+* Strong neon cyan and blue glow effects.
+* Glassmorphism panels.
+* Animated telemetry gauges.
+* Holographic map styling.
+* Animated status indicators.
+* Professional NASA-inspired control center appearance.
+
+All new systems should be integrated into the existing dashboard without removing current functionality.
