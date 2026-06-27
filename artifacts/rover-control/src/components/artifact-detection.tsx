@@ -1,5 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Scan, ZoomIn, Trash2, Download, AlertCircle } from "lucide-react";
+import { X, Scan, ZoomIn, Trash2, Download, AlertCircle, MapPin } from "lucide-react";
+
+const BASE_LAT = 37.77491;
+const BASE_LNG = -122.41942;
+const M_PER_DEG_LAT = 111_000;
+const M_PER_DEG_LNG = 111_000 * Math.cos((BASE_LAT * Math.PI) / 180);
+
+function posToGps(x: number, y: number) {
+  return {
+    lat: BASE_LAT + y / M_PER_DEG_LAT,
+    lng: BASE_LNG + x / M_PER_DEG_LNG,
+  };
+}
 
 interface Detection {
   id: string;
@@ -10,12 +22,28 @@ interface Detection {
   w: number;
   h: number;
   timestamp: number;
+  cameraSource: string;
+  roverX: number;
+  roverY: number;
+  lat: number;
+  lng: number;
+}
+
+export interface ArtifactMarker {
+  id: string;
+  x: number;
+  y: number;
+  lat: number;
+  lng: number;
+  type: string;
+  timestamp: number;
 }
 
 interface Props {
   onClose: () => void;
   cameraUrl: string;
   currentPos: { x: number; y: number; headingDeg: number };
+  onArtifactDetected?: (marker: ArtifactMarker) => void;
 }
 
 const ARTIFACT_TYPES = [
@@ -28,10 +56,14 @@ const ARTIFACT_TYPES = [
 
 function genId() { return `det-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`; }
 
-function randomDet(): Detection {
+function randomDet(pos: { x: number; y: number }, cameraSource: string): Detection {
   const t = ARTIFACT_TYPES[Math.floor(Math.random() * ARTIFACT_TYPES.length)];
   const w = 60 + Math.random() * 120;
   const h = 40 + Math.random() * 80;
+  // Jitter rover position slightly to simulate detection offset from rover
+  const jx = pos.x + (Math.random() - 0.5) * 3;
+  const jy = pos.y + (Math.random() - 0.5) * 3;
+  const gps = posToGps(jx, jy);
   return {
     id: genId(),
     type: t.label,
@@ -40,10 +72,15 @@ function randomDet(): Detection {
     y: 15 + Math.random() * (180 - h - 15),
     w, h,
     timestamp: Date.now(),
+    cameraSource: cameraSource || "Camera (unknown)",
+    roverX: pos.x,
+    roverY: pos.y,
+    lat: gps.lat,
+    lng: gps.lng,
   };
 }
 
-export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
+export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDetected }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [detections, setDetections] = useState<Detection[]>([]);
   const [history, setHistory] = useState<Detection[]>([]);
@@ -52,13 +89,22 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
   const animRef = useRef<number>(0);
   const scanLineY = useRef(0);
 
+  // Derive a label for the camera source
+  const cameraLabel = cameraUrl
+    ? cameraUrl.includes("192.168")
+      ? `WiFi — ${cameraUrl.split("/")[2] ?? "camera"}`
+      : cameraUrl.length > 0
+        ? "Camera (configured)"
+        : "Unknown"
+    : "No Camera";
+
   const typeInfo = useCallback((type: string) => ARTIFACT_TYPES.find((t) => t.label === type) ?? ARTIFACT_TYPES[0], []);
 
   // Simulate new detections
   useEffect(() => {
     if (!scanning) return;
     const spawnDet = () => {
-      const newDet = randomDet();
+      const newDet = randomDet(currentPos, cameraLabel);
       setDetections((prev) => {
         const filtered = prev.filter((d) => Date.now() - d.timestamp < 6000);
         return [...filtered.slice(-5), newDet];
@@ -66,11 +112,23 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
       setHistory((prev) => [newDet, ...prev.slice(0, 29)]);
       setFlash(true);
       setTimeout(() => setFlash(false), 800);
+      // Notify parent so map can show a marker
+      onArtifactDetected?.({
+        id: newDet.id,
+        x: newDet.roverX,
+        y: newDet.roverY,
+        lat: newDet.lat,
+        lng: newDet.lng,
+        type: newDet.type,
+        timestamp: newDet.timestamp,
+      });
     };
     const delay = 5000 + Math.random() * 10000;
     const t = setTimeout(spawnDet, delay);
     return () => clearTimeout(t);
-  }, [detections, scanning]);
+  // Re-schedule whenever a detection fires or position changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detections, scanning, currentPos.x, currentPos.y]);
 
   // Canvas draw — scanline + bounding boxes
   useEffect(() => {
@@ -83,7 +141,6 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
       const W = canvas.width, H = canvas.height;
       ctx.clearRect(0, 0, W, H);
 
-      // Scanline overlay
       if (scanning) {
         scanLineY.current = (scanLineY.current + 1.5) % H;
         const grad = ctx.createLinearGradient(0, scanLineY.current - 20, 0, scanLineY.current + 20);
@@ -94,56 +151,41 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
         ctx.fillRect(0, scanLineY.current - 20, W, 40);
       }
 
-      // Stale detections fade out
       const now = Date.now();
       const active = detections.filter((d) => now - d.timestamp < 6000);
-
       for (const d of active) {
         const age = (now - d.timestamp) / 6000;
         const alpha = Math.max(0, 1 - age);
         const info = typeInfo(d.type);
         const col = info.color;
-
         const scaleX = W / 320, scaleY = H / 180;
         const rx = d.x * scaleX, ry = d.y * scaleY, rw = d.w * scaleX, rh = d.h * scaleY;
 
-        // Glow behind box
-        ctx.shadowColor = col;
-        ctx.shadowBlur = 10;
-
-        // Bounding box
+        ctx.shadowColor = col; ctx.shadowBlur = 10;
         ctx.strokeStyle = `${col}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([]);
+        ctx.lineWidth = 1.5; ctx.setLineDash([]);
         ctx.strokeRect(rx, ry, rw, rh);
 
-        // Corner markers
-        const cs = 8;
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = col;
+        const cs = 8; ctx.lineWidth = 2.5; ctx.strokeStyle = col;
         [[rx, ry], [rx + rw, ry], [rx, ry + rh], [rx + rw, ry + rh]].forEach(([x, y], idx) => {
           const sx = idx % 2 === 0 ? 1 : -1, sy = idx < 2 ? 1 : -1;
           ctx.beginPath();
           ctx.moveTo(x, y + sy * cs); ctx.lineTo(x, y); ctx.lineTo(x + sx * cs, y);
           ctx.stroke();
         });
-
         ctx.shadowBlur = 0;
 
-        // Label background
         const label = `${d.type.toUpperCase()}  ${Math.round(d.confidence)}%`;
         ctx.font = "bold 9px monospace";
         const lw = ctx.measureText(label).width;
-        ctx.fillStyle = `rgba(0,0,0,0.75)`;
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.fillRect(rx - 1, ry - 16, lw + 6, 14);
-
         ctx.fillStyle = `${col}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
         ctx.fillText(label, rx + 2, ry - 5);
       }
 
       animRef.current = requestAnimationFrame(draw);
     };
-
     animRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animRef.current);
   }, [detections, scanning, typeInfo]);
@@ -154,8 +196,14 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
       roverPosition: currentPos,
       totalDetections: history.length,
       detections: history.map((d) => ({
-        ...d,
+        id: d.id,
+        type: d.type,
+        confidence: Math.round(d.confidence),
         time: new Date(d.timestamp).toISOString(),
+        cameraSource: d.cameraSource,
+        roverPosition: { x: d.roverX, y: d.roverY },
+        gpsCoordinates: { lat: d.lat, lng: d.lng },
+        boundingBox: { x: d.x, y: d.y, w: d.w, h: d.h },
       })),
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -191,6 +239,15 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
           </div>
         </div>
 
+        {/* Camera source badge */}
+        <div className="px-3 py-1.5 border-b border-border bg-black/30 shrink-0 flex items-center gap-2 text-[9px] font-mono">
+          <span className="text-muted-foreground/60">SOURCE:</span>
+          <span className={`font-bold ${cameraUrl ? "text-cyan-400" : "text-muted-foreground/40"}`}>{cameraLabel}</span>
+          <span className="ml-auto text-muted-foreground/30">
+            Rover X:{currentPos.x.toFixed(1)} Y:{currentPos.y.toFixed(1)} HDG:{Math.round(currentPos.headingDeg)}°
+          </span>
+        </div>
+
         {/* Camera view with overlay */}
         <div className="relative shrink-0 bg-black" style={{ aspectRatio: "16/9" }}>
           {cameraUrl ? (
@@ -206,15 +263,7 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
               <p className="text-[9px] text-muted-foreground/20">Configure camera on Cameras page</p>
             </div>
           )}
-
-          {/* Detection overlay canvas */}
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            width={320} height={180}
-          />
-
-          {/* HUD overlay */}
+          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" width={320} height={180} />
           <div className="absolute top-1.5 left-1.5 flex gap-1 pointer-events-none">
             <span className="px-1.5 py-0.5 bg-black/70 border border-cyan-500/40 text-cyan-400 text-[9px] font-bold">AI SCAN</span>
             {scanning && <span className="px-1.5 py-0.5 bg-cyan-900/40 border border-cyan-500/40 text-cyan-300 text-[9px] animate-pulse">ACTIVE</span>}
@@ -222,8 +271,6 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
           <div className="absolute top-1.5 right-1.5 text-[9px] font-mono text-cyan-400/60 pointer-events-none">
             {detections.filter((d) => Date.now() - d.timestamp < 6000).length} LIVE
           </div>
-
-          {/* Scan border glow when active */}
           {scanning && (
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20" style={{ boxShadow: "0 0 15px rgba(0,245,255,0.15) inset" }} />
           )}
@@ -263,22 +310,31 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
               const fresh = Date.now() - d.timestamp < 6000;
               return (
                 <div key={d.id}
-                  className={`flex items-center gap-2.5 px-2 py-1.5 rounded border transition-all ${fresh ? "border-[color:var(--c)]/50 bg-[color:var(--c)]/8" : "border-border bg-white/2"}`}
+                  className={`px-2 py-1.5 rounded border transition-all ${fresh ? "border-[color:var(--c)]/50 bg-[color:var(--c)]/8" : "border-border bg-white/2"}`}
                   style={{ "--c": info.color } as React.CSSProperties}
                 >
-                  <span className="text-base shrink-0">{info.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold truncate" style={{ color: info.color }}>{d.type}</span>
-                      {i === 0 && fresh && <span className="text-[8px] text-cyan-300 animate-pulse shrink-0">NEW</span>}
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base shrink-0">{info.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold truncate" style={{ color: info.color }}>{d.type}</span>
+                        {i === 0 && fresh && <span className="text-[8px] text-cyan-300 animate-pulse shrink-0">NEW</span>}
+                      </div>
+                      <div className="text-[9px] text-muted-foreground font-mono">
+                        CONF {Math.round(d.confidence)}%  ·  {new Date(d.timestamp).toLocaleTimeString()}
+                      </div>
                     </div>
-                    <div className="text-[9px] text-muted-foreground font-mono">
-                      CONF {Math.round(d.confidence)}%  ·  {new Date(d.timestamp).toLocaleTimeString()}
+                    <div className="text-[9px] text-right font-mono shrink-0">
+                      <div style={{ color: info.color }}>{Math.round(d.confidence)}%</div>
+                      <div className="text-muted-foreground/40">#{history.length - i}</div>
                     </div>
                   </div>
-                  <div className="text-[9px] text-right font-mono shrink-0">
-                    <div style={{ color: info.color }}>{Math.round(d.confidence)}%</div>
-                    <div className="text-muted-foreground/40">#{history.length - i}</div>
+                  {/* GPS coordinates row */}
+                  <div className="flex items-center gap-1.5 mt-1 text-[8px] font-mono text-muted-foreground/50">
+                    <MapPin className="w-2 h-2 shrink-0" style={{ color: info.color + "80" }} />
+                    <span>{d.lat.toFixed(6)}, {d.lng.toFixed(6)}</span>
+                    <span className="text-muted-foreground/30">·</span>
+                    <span className="truncate" title={d.cameraSource}>{d.cameraSource}</span>
                   </div>
                 </div>
               );
@@ -289,7 +345,7 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos }: Props) {
         {/* Footer status */}
         <div className="px-3 py-2 border-t border-border bg-black/30 shrink-0 flex items-center gap-2 text-[9px] font-mono text-muted-foreground">
           <AlertCircle className="w-3 h-3 text-cyan-500/50" />
-          Simulated AI detections · Connect camera for live analysis
+          Simulated AI · markers pushed to GPS panel
           <span className="ml-auto text-muted-foreground/40">X:{currentPos.x.toFixed(1)} Y:{currentPos.y.toFixed(1)}</span>
         </div>
       </div>

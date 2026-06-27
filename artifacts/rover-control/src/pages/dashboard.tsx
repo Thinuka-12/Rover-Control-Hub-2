@@ -29,7 +29,7 @@ import {
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
 import { useProximityAlarm } from "@/hooks/use-proximity-alarm";
-import { ArtifactDetection } from "@/components/artifact-detection";
+import { ArtifactDetection, type ArtifactMarker } from "@/components/artifact-detection";
 import { VrMode } from "@/components/vr-mode";
 import { MissionRecorder } from "@/components/mission-recorder";
 import { GpsPanel } from "@/components/gps-panel";
@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [showMission, setShowMission] = useState(false);
   const [showGps, setShowGps] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
+  const [artifactMarkers, setArtifactMarkers] = useState<ArtifactMarker[]>([]);
 
   // ── Home position ─────────────────────────────────────────────────────────────
   const homeQuery = useGetHomePosition({ query: { refetchInterval: 5000 } as never });
@@ -821,12 +822,14 @@ export default function Dashboard() {
         onClose={() => setShowArtifacts(false)}
         cameraUrl={primaryCameraUrl}
         currentPos={currentPos}
+        onArtifactDetected={(marker) => setArtifactMarkers((prev) => [...prev.slice(-49), marker])}
       />
     )}
     {showGps && (
       <GpsPanel
         onClose={() => setShowGps(false)}
         currentPos={currentPos}
+        artifactMarkers={artifactMarkers}
       />
     )}
     {showMission && (
@@ -834,6 +837,7 @@ export default function Dashboard() {
         onClose={() => setShowMission(false)}
         rover={rover}
         wsStatus={wsStatus}
+        currentPos={currentPos}
       />
     )}
     {showVr && (
@@ -841,6 +845,10 @@ export default function Dashboard() {
         onClose={() => setShowVr(false)}
         cameraUrl={primaryCameraUrl}
         telemetry={wsTelemetry}
+        onPanTiltCommand={(pan, tilt) => {
+          // Log pan/tilt commands to console; wire to a camera servo API when available
+          void console.debug("[VR] camera pan/tilt", { pan, tilt });
+        }}
       />
     )}
 

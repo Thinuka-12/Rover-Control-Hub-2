@@ -15,9 +15,18 @@ interface Props {
   onHomeRefresh: () => void;
 }
 
+/** Modes backed by a real API toggle (sent to rover firmware). */
+const API_MODES = ["exploring", "patrolling", "following", "homing"] as const;
+type ApiMode = (typeof API_MODES)[number];
+
+/** Modes that are UI-only simulations — never sent to the rover. */
+const SIM_MODES = ["artifact_search", "area_scan"] as const;
+type SimMode = (typeof SIM_MODES)[number];
+
 const MODES: {
-  mode: AutonomousToggleInputMode | string;
+  mode: ApiMode | SimMode;
   label: string;
+  simOnly?: boolean;
   icon: React.ReactNode;
   color: string;
   description: string;
@@ -57,19 +66,21 @@ const MODES: {
   },
   {
     mode: "artifact_search",
-    label: "ARTIFACT",
+    simOnly: true,
+    label: "ARTIFACT SCAN",
     icon: <Search className="w-4 h-4" />,
     color: "#00f5ff",
-    description: "AI artifact search pattern",
-    detail: "Outward spiral scan with vision AI active — marks artifact positions on map",
+    description: "Simulated spiral search pattern",
+    detail: "UI simulation: outward spiral scan with AI vision active — marks artifact positions on map (requires firmware upgrade for hardware support)",
   },
   {
     mode: "area_scan",
+    simOnly: true,
     label: "AREA SCAN",
     icon: <Grid className="w-4 h-4" />,
     color: "#cc44ff",
-    description: "Systematic area coverage",
-    detail: "Lawnmower grid pattern over defined region for full terrain mapping",
+    description: "Simulated systematic coverage",
+    detail: "UI simulation: lawnmower grid pattern over defined region (requires firmware upgrade for hardware support)",
   },
 ];
 
@@ -78,348 +89,271 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
   const toggleAuto = useToggleAutonomousMode();
   const abortRthMut = useAbortRth();
 
-  const auto = autoQuery.data;
-  const isEnabled = auto?.enabled ?? false;
-  const currentMode = auto?.mode ?? "idle";
-  const modeColor = MODES.find((m) => m.mode === currentMode)?.color ?? "#666";
+  const isEnabled = autoQuery.data?.enabled ?? false;
+  const currentMode = autoQuery.data?.mode ?? "idle";
 
-  const [rthProgress, setRthProgress] = useState(0);
-  const [rthActive, setRthActive] = useState(false);
-  const [rthEta, setRthEta] = useState<number | null>(null);
+  // Local simulation state for UI-only modes (not sent to rover API)
+  const [simMode, setSimMode] = useState<SimMode | null>(null);
+  const [simProgress, setScanProgress] = useState(0);
 
-  const [missionPlan, setMissionPlan] = useState<string[]>([]);
-  const [missionRunning, setMissionRunning] = useState(false);
-  const [missionIdx] = useState(0);
-
-  // Scan progress for artifact_search / area_scan modes
-  const [scanProgress, setScanProgress] = useState(0);
-  const [scanActive, setScanActive] = useState(false);
-
-  // Poll RTH progress
+  // Simulate scan progress for sim modes
   useEffect(() => {
-    if (!rthActive) return;
-    const iv = setInterval(() => {
-      fetch("/api/rover/rth/status")
-        .then((r) => r.json() as Promise<{ active: boolean; progressPct: number; etaSeconds: number | null }>)
-        .then((d) => {
-          setRthProgress(d.progressPct);
-          setRthEta(d.etaSeconds);
-          if (!d.active) {
-            setRthActive(false);
-            toggleAuto.mutate({ data: { enabled: false, mode: "homing" as AutonomousToggleInputMode } });
-          }
-        })
-        .catch(() => undefined);
-    }, 600);
+    if (!simMode) { setScanProgress(0); return; }
+    setScanProgress(0);
+    const iv = setInterval(() => setScanProgress((p) => p >= 100 ? 0 : p + 0.4), 200);
     return () => clearInterval(iv);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rthActive]);
+  }, [simMode]);
 
-  // Simulate scan progress for artifact_search & area_scan
-  useEffect(() => {
-    if (!scanActive) return;
-    const iv = setInterval(() => {
-      setScanProgress((p) => {
-        if (p >= 100) { setScanActive(false); return 100; }
-        return p + (0.2 + Math.random() * 0.5);
-      });
-    }, 200);
-    return () => clearInterval(iv);
-  }, [scanActive]);
+  // Find which mode is visually "active" for highlighting
+  const activeApiMode = isEnabled ? currentMode : null;
+  const activeSimMode = simMode;
 
-  const setMode = (mode: string) => {
+  const setMode = (modeId: ApiMode | SimMode) => {
     if (!canAutonom) return;
-    if (mode === "artifact_search" || mode === "area_scan") {
-      setScanProgress(0);
-      setScanActive(true);
-    } else {
-      setScanActive(false);
+    const def = MODES.find((m) => m.mode === modeId);
+    if (!def) return;
+
+    if (def.simOnly) {
+      // Sim-only: disable any real API mode first, then activate sim mode
+      if (isEnabled) {
+        toggleAuto.mutate({ enabled: false } as never);
+      }
+      setSimMode((prev) => (prev === modeId ? null : (modeId as SimMode)));
+      return;
     }
-    toggleAuto.mutate({ data: { enabled: true, mode: mode as AutonomousToggleInputMode } });
+
+    // Real API mode: clear any sim mode
+    setSimMode(null);
+    toggleAuto.mutate({ enabled: !isEnabled || currentMode !== modeId, mode: modeId as AutonomousToggleInputMode } as never);
   };
 
-  const abortAll = () => {
-    if (!canAutonom) return;
-    toggleAuto.mutate({ data: { enabled: false, mode: (auto?.mode ?? "exploring") as AutonomousToggleInputMode } });
-    if (rthActive) {
-      abortRthMut.mutate(undefined as never);
-      setRthActive(false); setRthProgress(0); setRthEta(null);
+  const stopAll = () => {
+    setSimMode(null);
+    setScanProgress(0);
+    if (isEnabled) {
+      toggleAuto.mutate({ enabled: false } as never);
     }
-    setScanActive(false); setScanProgress(0);
-    setMissionRunning(false);
-  };
-
-  const doSetHome = () => {
-    if (!canAutonom) return;
-    fetch("/api/rover/home/set", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ x: currentPos.x, y: currentPos.y }),
-    })
-      .then(() => onHomeRefresh())
-      .catch(() => undefined);
-  };
-
-  const doRth = () => {
-    if (!canAutonom || !homeData?.set) return;
-    fetch("/api/rover/rth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ x: currentPos.x, y: currentPos.y }),
-    })
-      .then(() => { setRthActive(true); setRthProgress(0); setMode("homing"); })
-      .catch(() => undefined);
   };
 
   const abortRth = () => {
+    setSimMode(null);
     abortRthMut.mutate(undefined as never);
-    setRthActive(false); setRthProgress(0); setRthEta(null);
   };
 
-  const addToMission = (id: string) => {
-    if (!missionPlan.includes(id)) setMissionPlan((p) => [...p, id]);
-  };
-  const removeFromMission = (id: string) => setMissionPlan((p) => p.filter((i) => i !== id));
-
-  const executeMission = () => {
-    if (missionPlan.length === 0 || !canAutonom) return;
-    setMissionRunning(true);
-    setMode("following");
+  const isModeActive = (modeId: ApiMode | SimMode) => {
+    const def = MODES.find((m) => m.mode === modeId);
+    if (def?.simOnly) return activeSimMode === modeId;
+    return activeApiMode === modeId;
   };
 
-  const stopMission = () => {
-    setMissionRunning(false);
-    abortAll();
-  };
-
-  const activeModeInfo = MODES.find((m) => m.mode === currentMode);
+  const anyActive = isEnabled || !!simMode;
 
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-end bg-black/60 backdrop-blur-sm font-mono"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="h-full w-[440px] bg-[#080c10] border-l border-border flex flex-col overflow-hidden shadow-2xl">
+      <div className="h-full w-[380px] bg-[#06090d] border-l border-primary/20 flex flex-col overflow-hidden shadow-2xl"
+        style={{ boxShadow: "0 0 40px rgba(0,245,255,0.06) inset" }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-black/40 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-primary/20 bg-black/40 shrink-0">
           <div className="flex items-center gap-2">
             <Navigation className="w-4 h-4 text-primary" />
-            <span className="font-bold text-[12px] tracking-widest text-primary">AUTONOMOUS CONTROL</span>
-            <span className="text-[9px] text-muted-foreground/50 border border-border px-1 rounded">{MODES.length} MODES</span>
+            <span className="font-bold text-[12px] tracking-widest text-primary">AUTONOMOUS MODE</span>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+          <div className="flex items-center gap-2">
+            {anyActive && (
+              <button
+                onClick={stopAll}
+                className="flex items-center gap-1 px-2 py-0.5 border border-red-500/50 bg-red-500/10 text-red-400 rounded text-[10px] hover:bg-red-500/20 transition-colors"
+              >
+                <Square className="w-3 h-3 fill-current" /> STOP ALL
+              </button>
+            )}
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Operator gate */}
+        {!canAutonom && (
+          <div className="px-4 py-3 border-b border-orange-500/20 bg-orange-500/5 shrink-0 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+            <span className="text-[10px] text-orange-300">Autonomous control requires Pilot role. Current operator does not have this permission.</span>
+          </div>
+        )}
 
-          {/* ── Status banner ─────────────────────────────────────────── */}
-          <div
-            className={`rounded border p-3 ${isEnabled ? "border-[color:var(--mc)] bg-[color:var(--mc)]/10" : "border-border bg-black/30"}`}
-            style={{ "--mc": modeColor } as React.CSSProperties}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${isEnabled ? "animate-pulse" : ""}`} style={{ background: isEnabled ? modeColor : "#444" }} />
-                <span className="text-[11px] font-bold" style={{ color: isEnabled ? modeColor : "#666" }}>
-                  {isEnabled ? currentMode.toUpperCase().replace("_", " ") : "STANDBY"}
-                </span>
-              </div>
-              {isEnabled && (
-                <button onClick={abortAll} disabled={!canAutonom}
-                  className="flex items-center gap-1 px-2 py-0.5 border border-red-500/60 bg-red-500/10 text-red-400 rounded text-[10px] font-bold hover:bg-red-500/20 disabled:opacity-40">
-                  <Square className="w-2.5 h-2.5 fill-current" /> ABORT
+        {/* Sim mode warning banner */}
+        {simMode && (
+          <div className="px-4 py-2 border-b bg-blue-500/8 border-blue-500/20 shrink-0 flex items-start gap-2 text-[10px]">
+            <AlertTriangle className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+            <span className="text-blue-300">
+              <span className="font-bold text-blue-400">SIMULATION MODE</span> — this pattern runs in the UI only. No commands are sent to the rover. Requires firmware upgrade for hardware support.
+            </span>
+          </div>
+        )}
+
+        {/* Scroll region */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Mode cards */}
+          <div className="p-4 space-y-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">Select Mode</div>
+
+            {MODES.map((m) => {
+              const active = isModeActive(m.mode);
+              return (
+                <button
+                  key={m.mode}
+                  disabled={!canAutonom}
+                  onClick={() => setMode(m.mode)}
+                  className={`w-full text-left p-3 rounded border transition-all relative ${
+                    active
+                      ? "border-[color:var(--mc)]/60 bg-[color:var(--mc)]/10"
+                      : "border-border hover:border-[color:var(--mc)]/30 hover:bg-[color:var(--mc)]/5"
+                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  style={{ "--mc": m.color } as React.CSSProperties}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span style={{ color: active ? m.color : "var(--muted-foreground)" }}>{m.icon}</span>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold" style={{ color: active ? m.color : "var(--foreground)" }}>{m.label}</span>
+                          {m.simOnly && (
+                            <span className="text-[8px] font-bold px-1 border rounded" style={{ color: m.color, borderColor: `${m.color}40` }}>SIM</span>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-muted-foreground">{m.description}</span>
+                      </div>
+                    </div>
+                    {active && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: m.color }} />
+                        <span className="text-[9px] font-bold" style={{ color: m.color }}>ACTIVE</span>
+                      </div>
+                    )}
+                  </div>
+                  {active && (
+                    <p className="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">{m.detail}</p>
+                  )}
                 </button>
-              )}
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              {isEnabled
-                ? activeModeInfo?.detail ?? "Autonomous navigation active"
-                : "Select a mode below to engage autonomous operations"}
-            </div>
-            {!canAutonom && (
-              <div className="mt-2 flex items-center gap-1.5 text-[9px] text-orange-400/80">
-                <AlertTriangle className="w-3 h-3" /> Pilot role required to engage autonomous mode
-              </div>
-            )}
+              );
+            })}
           </div>
 
-          {/* Scan progress (artifact_search / area_scan) */}
-          {isEnabled && ((currentMode as string) === "artifact_search" || (currentMode as string) === "area_scan") && (
-            <div className="border border-[#00f5ff]/20 rounded p-3 space-y-2 bg-[#00f5ff]/5">
+          {/* Sim scan progress */}
+          {simMode && (
+            <div className="mx-4 mb-4 border rounded p-3 space-y-2 bg-[color:var(--sc)]/5"
+              style={{ "--sc": simMode === "artifact_search" ? "#00f5ff" : "#cc44ff", borderColor: `${simMode === "artifact_search" ? "#00f5ff" : "#cc44ff"}30` } as React.CSSProperties}>
               <div className="flex justify-between text-[10px]">
-                <span style={{ color: (currentMode as string) === "artifact_search" ? "#00f5ff" : "#cc44ff" }}>
-                  {(currentMode as string) === "artifact_search" ? "● SCANNING FOR ARTIFACTS" : "● AREA SCAN IN PROGRESS"}
+                <span style={{ color: simMode === "artifact_search" ? "#00f5ff" : "#cc44ff" }}>
+                  {simMode === "artifact_search" ? "● SCANNING FOR ARTIFACTS [SIM]" : "● AREA SCAN IN PROGRESS [SIM]"}
                 </span>
-                <span className="text-muted-foreground">{Math.round(Math.min(scanProgress, 100))}%</span>
+                <span className="text-muted-foreground">{Math.round(Math.min(simProgress, 100))}%</span>
               </div>
-              <Progress value={Math.min(scanProgress, 100)} className="h-1.5" />
+              <Progress value={Math.min(simProgress, 100)} className="h-1.5" />
               <div className="text-[9px] text-muted-foreground">
-                {(currentMode as string) === "artifact_search"
-                  ? "Spiral search pattern active — AI vision online"
-                  : `Grid row ${Math.ceil(scanProgress / 10)} of 10 — systematic coverage`}
+                {simMode === "artifact_search"
+                  ? "Simulated spiral search — connect AI detection panel to see markers"
+                  : `Simulated grid row ${Math.ceil(simProgress / 10)} of 10 — systematic coverage`}
               </div>
             </div>
           )}
 
-          {/* ── Mode cards ────────────────────────────────────────────── */}
-          <div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
-              Navigation Mode — <span className="text-primary/60">6 available</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {MODES.map((m) => {
-                const active = isEnabled && currentMode === m.mode;
-                return (
-                  <button key={String(m.mode)} onClick={() => setMode(String(m.mode))} disabled={!canAutonom}
-                    className={`text-left p-3 rounded border transition-all disabled:opacity-40 ${active
-                      ? "border-[color:var(--mc)] bg-[color:var(--mc)]/15 shadow-inner"
-                      : "border-border bg-black/30 hover:border-border/80 hover:bg-white/5"}`}
-                    style={{ "--mc": m.color } as React.CSSProperties}>
-                    <div className="flex items-center gap-1.5 mb-1.5" style={{ color: active ? m.color : "#777" }}>
-                      {m.icon}
-                      <span className="text-[10px] font-bold tracking-wider">{m.label}</span>
-                      {active && <span className="ml-auto w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: m.color }} />}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground leading-tight">{m.description}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* ── Return to Home ────────────────────────────────────────── */}
-          <div className="border border-border rounded p-3 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <Home className="w-3.5 h-3.5 text-[#f06292]" />
-              <span className="text-[10px] font-bold text-[#f06292] tracking-wider">RETURN TO HOME</span>
-            </div>
-
-            {homeData?.set ? (
-              <div className="text-[10px] text-muted-foreground font-mono">
-                HOME SET — <span className="text-primary">X:{homeData.x.toFixed(2)}m  Y:{homeData.y.toFixed(2)}m</span>
-                {homeData.setAt && (
-                  <span className="ml-2 text-muted-foreground/50">{new Date(homeData.setAt).toLocaleTimeString()}</span>
-                )}
-              </div>
-            ) : (
-              <div className="text-[10px] text-muted-foreground/50">No home position set — navigate to desired home spot then tap SET HOME</div>
-            )}
-
-            {rthActive && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-[9px]">
-                  <span className="text-[#f06292] animate-pulse">● RETURNING TO HOME</span>
-                  <span className="text-muted-foreground">{rthEta != null ? `ETA ${rthEta}s` : "—"}</span>
-                </div>
-                <Progress value={rthProgress} className="h-1.5" />
-                <div className="text-[9px] text-right text-muted-foreground">{Math.round(rthProgress)}%</div>
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button onClick={doSetHome} disabled={!canAutonom}
-                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-border rounded text-[10px] text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-40 transition-colors">
-                <Navigation className="w-3 h-3" /> SET HOME HERE
+          {/* RTH controls */}
+          {(currentMode === "homing" && isEnabled) && (
+            <div className="mx-4 mb-4 flex items-center gap-2 p-3 border border-pink-500/20 bg-pink-500/5 rounded">
+              <Home className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+              <span className="text-[10px] text-pink-300 flex-1">Homing in progress — returning to saved home</span>
+              <button
+                onClick={abortRth}
+                className="shrink-0 flex items-center gap-1 px-2 py-0.5 border border-pink-500/40 text-pink-400 rounded text-[9px] hover:bg-pink-500/15 transition-colors"
+              >
+                <RotateCcw className="w-2.5 h-2.5" /> ABORT
               </button>
-              {rthActive ? (
-                <button onClick={abortRth} disabled={!canAutonom}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-red-500/60 bg-red-500/10 text-red-400 rounded text-[10px] font-bold hover:bg-red-500/20 disabled:opacity-40">
-                  <RotateCcw className="w-3 h-3" /> ABORT RTH
-                </button>
-              ) : (
-                <button onClick={doRth} disabled={!canAutonom || !homeData?.set}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-[#f06292]/50 bg-[#f06292]/10 text-[#f06292] rounded text-[10px] font-bold hover:bg-[#f06292]/20 disabled:opacity-40 transition-colors">
-                  <Home className="w-3 h-3" /> RETURN HOME
-                </button>
-              )}
             </div>
-          </div>
+          )}
 
-          {/* ── Mission Plan ──────────────────────────────────────────── */}
-          <div className="border border-border rounded p-3 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Map className="w-3.5 h-3.5 text-primary" />
-                <span className="text-[10px] font-bold text-primary tracking-wider">MISSION PLAN</span>
-              </div>
-              {missionPlan.length > 0 && (
-                <span className="text-[9px] text-muted-foreground">{missionPlan.length} waypoint{missionPlan.length !== 1 ? "s" : ""}</span>
-              )}
-            </div>
-
-            {missionPlan.length === 0 ? (
-              <div className="text-[10px] text-muted-foreground/40 py-2 text-center">No waypoints queued — add from list below</div>
-            ) : (
-              <div className="space-y-1">
-                {missionPlan.map((id, idx) => {
-                  const wp = waypoints.find((w) => w.id === id);
-                  if (!wp) return null;
-                  const isCurrent = missionRunning && idx === missionIdx;
-                  return (
-                    <div key={id} className={`flex items-center gap-2 py-1 px-2 rounded text-[10px] ${isCurrent ? "bg-primary/15 border border-primary/30" : "bg-white/3"}`}>
-                      <span className={`font-bold w-4 text-center ${isCurrent ? "text-primary animate-pulse" : "text-muted-foreground/50"}`}>{idx + 1}</span>
-                      <span className="flex-1 truncate">{wp.label}</span>
-                      <span className="text-muted-foreground/40 font-mono text-[9px]">{wp.x.toFixed(1)},{wp.y.toFixed(1)}</span>
-                      {!missionRunning && (
-                        <button onClick={() => removeFromMission(id)} className="text-muted-foreground/40 hover:text-red-400">
-                          <X className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {!missionRunning && waypoints.length > 0 && (
-              <div className="space-y-1">
-                <div className="text-[9px] text-muted-foreground/60 uppercase tracking-wider">Available waypoints</div>
-                <div className="space-y-0.5 max-h-28 overflow-y-auto">
-                  {waypoints.filter((w) => !missionPlan.includes(w.id)).map((w) => (
-                    <button key={w.id} onClick={() => addToMission(w.id)}
-                      className="w-full flex items-center gap-2 py-1 px-2 rounded text-[10px] bg-white/3 hover:bg-white/8 border border-transparent hover:border-primary/20 text-left transition-colors">
-                      <span className="text-cyan-400/60">+</span>
-                      <span className="flex-1 truncate text-muted-foreground">{w.label}</span>
-                      <span className="text-muted-foreground/30 font-mono text-[9px]">{w.x.toFixed(1)},{w.y.toFixed(1)}</span>
-                    </button>
-                  ))}
+          {/* Home position section */}
+          <div className="px-4 pb-4 space-y-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Home Position</div>
+            {homeData ? (
+              <div className="border border-border rounded p-3 text-[10px] space-y-1 bg-black/20">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">X</span>
+                  <span className="font-mono text-foreground">{homeData.x.toFixed(3)} m</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Y</span>
+                  <span className="font-mono text-foreground">{homeData.y.toFixed(3)} m</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Set at</span>
+                  <span className="font-mono text-muted-foreground">
+                    {homeData.setAt ? new Date(homeData.setAt).toLocaleTimeString() : "—"}
+                  </span>
                 </div>
               </div>
+            ) : (
+              <div className="border border-dashed border-border rounded p-3 text-center">
+                <p className="text-[10px] text-muted-foreground">No home position set</p>
+                <p className="text-[9px] text-muted-foreground/40 mt-0.5">Use the main dashboard to set home</p>
+              </div>
             )}
+            <button
+              onClick={onHomeRefresh}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" /> Refresh
+            </button>
+          </div>
 
-            {waypoints.length === 0 && (
-              <div className="text-[9px] text-muted-foreground/30 text-center py-1">Record a path and drop waypoints in the map view first</div>
-            )}
-
-            {missionPlan.length > 0 && (
-              <button onClick={missionRunning ? stopMission : executeMission} disabled={!canAutonom}
-                className={`w-full flex items-center justify-center gap-2 py-2 border rounded text-[10px] font-bold disabled:opacity-40 transition-colors ${missionRunning
-                  ? "border-red-500/60 bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                  : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"}`}>
-                {missionRunning
-                  ? <><Square className="w-3 h-3 fill-current" /> ABORT MISSION</>
-                  : <><Play className="w-3 h-3 fill-current" /> EXECUTE MISSION ({missionPlan.length} pts)</>}
-              </button>
+          {/* Waypoints */}
+          <div className="px-4 pb-4 space-y-2">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              Waypoints <span className="text-primary">{waypoints.length}</span>
+            </div>
+            {waypoints.length === 0 ? (
+              <p className="text-[9px] text-muted-foreground/40">No waypoints saved — add them on the map</p>
+            ) : (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {waypoints.map((wp) => (
+                  <div key={wp.id} className="flex items-center gap-2 py-1 px-2 border border-border rounded text-[10px]">
+                    <Navigation className="w-2.5 h-2.5 text-primary/60 shrink-0" />
+                    <span className="flex-1 truncate text-foreground">{wp.label}</span>
+                    <span className="font-mono text-muted-foreground">{wp.x.toFixed(1)}, {wp.y.toFixed(1)}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
-          {/* ── System info ───────────────────────────────────────────── */}
-          <div className="border border-border rounded p-3 space-y-2">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Autonomous System</div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">Obstacle avoidance</span>
-              <span className={`text-[10px] font-bold ${auto?.obstacleAvoidance ? "text-[#00e676]" : "text-red-400"}`}>
-                {auto?.obstacleAvoidance ? "ACTIVE" : "OFF"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground">Path planning</span>
-              <span className={`text-[10px] font-bold ${auto?.pathPlanning ? "text-[#00e676]" : "text-red-400"}`}>
-                {auto?.pathPlanning ? "ACTIVE" : "OFF"}
-              </span>
+          {/* Current position */}
+          <div className="mx-4 mb-4 border border-border rounded p-3 bg-black/20">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Rover Position</div>
+            <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+              <div><div className="text-muted-foreground">X</div><div className="font-mono text-primary">{currentPos.x.toFixed(2)}</div></div>
+              <div><div className="text-muted-foreground">Y</div><div className="font-mono text-primary">{currentPos.y.toFixed(2)}</div></div>
+              <div><div className="text-muted-foreground">HDG</div><div className="font-mono text-primary">{Math.round(currentPos.headingDeg)}°</div></div>
             </div>
           </div>
+
+        </div>
+
+        {/* Status footer */}
+        <div className="px-4 py-2.5 border-t border-border bg-black/30 shrink-0 flex items-center gap-2 text-[10px] font-mono">
+          <div className={`w-2 h-2 rounded-full ${anyActive ? "animate-pulse bg-primary" : "bg-muted-foreground/30"}`} />
+          <span className={anyActive ? "text-primary" : "text-muted-foreground"}>
+            {simMode
+              ? `SIM: ${MODES.find((m) => m.mode === simMode)?.label}`
+              : isEnabled
+                ? `API: ${currentMode.toUpperCase()}`
+                : "STANDBY"
+            }
+          </span>
+          {isEnabled && !simMode && <span className="ml-auto text-muted-foreground/40 text-[9px]">Obstacle avoidance: {autoQuery.data?.obstacleAvoidance ? "ON" : "OFF"}</span>}
+          {simMode && <span className="ml-auto text-blue-400/60 text-[9px]">SIMULATION — no rover commands sent</span>}
         </div>
       </div>
     </div>
