@@ -537,7 +537,7 @@ export default function Dashboard() {
                 <span className="text-[10px] text-muted-foreground uppercase">Drive Control</span>
                 <span className="text-[9px] text-muted-foreground/50">WASD / ARROWS</span>
               </div>
-              <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-36 h-36 mx-auto">
+              <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-36 h-36 mx-auto font-bold bg-[color:var(--elevate-1)]">
                 <div />
                 <DKey active={activeKey === "up"} onDown={() => { handleDrive("forward"); setActiveKey("up"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="W" />
                 <div />
