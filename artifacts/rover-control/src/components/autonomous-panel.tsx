@@ -116,7 +116,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
     if (def.simOnly) {
       // Sim-only: disable any real API mode first, then activate sim mode
       if (isEnabled) {
-        toggleAuto.mutate({ enabled: false } as never);
+        toggleAuto.mutate({ data: { enabled: false } });
       }
       setSimMode((prev) => (prev === modeId ? null : (modeId as SimMode)));
       return;
@@ -124,14 +124,14 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
 
     // Real API mode: clear any sim mode
     setSimMode(null);
-    toggleAuto.mutate({ enabled: !isEnabled || currentMode !== modeId, mode: modeId as AutonomousToggleInputMode } as never);
+    toggleAuto.mutate({ data: { enabled: !isEnabled || currentMode !== modeId, mode: modeId as AutonomousToggleInputMode } });
   };
 
   const stopAll = () => {
     setSimMode(null);
     setScanProgress(0);
     if (isEnabled) {
-      toggleAuto.mutate({ enabled: false } as never);
+      toggleAuto.mutate({ data: { enabled: false } });
     }
   };
 

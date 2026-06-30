@@ -231,6 +231,22 @@ export default function Dashboard() {
       ctx.save(); ctx.translate(rx, ry); ctx.rotate(hRad);
       ctx.fillStyle = "#00e676"; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(5, 7); ctx.lineTo(0, 3); ctx.lineTo(-5, 7); ctx.closePath(); ctx.fill();
       ctx.restore();
+      // Artifact markers
+      for (const am of artifactMarkers) {
+        const ax = ox + am.x * mapScale, ay = oy - am.y * mapScale;
+        // Glow
+        const amGrd = ctx.createRadialGradient(ax, ay, 0, ax, ay, 10);
+        amGrd.addColorStop(0, "rgba(204,68,255,0.35)"); amGrd.addColorStop(1, "rgba(204,68,255,0)");
+        ctx.fillStyle = amGrd; ctx.beginPath(); ctx.arc(ax, ay, 10, 0, Math.PI * 2); ctx.fill();
+        // Diamond marker
+        ctx.save(); ctx.translate(ax, ay); ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = "#cc44ff"; ctx.strokeStyle = "rgba(204,68,255,0.6)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.rect(-4, -4, 8, 8); ctx.fill(); ctx.stroke();
+        ctx.restore();
+        // Label
+        ctx.fillStyle = "#cc44ff"; ctx.font = "bold 8px monospace";
+        ctx.fillText(am.type.slice(0, 10), ax + 7, ay - 4);
+      }
       // Coords
       ctx.fillStyle = "#444"; ctx.font = "9px monospace";
       ctx.fillText(`X:${currentPos.x.toFixed(1)} Y:${currentPos.y.toFixed(1)} H:${Math.round(currentPos.headingDeg)}°`, 12, H - 8);
@@ -238,7 +254,7 @@ export default function Dashboard() {
     };
     mapAnimRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(mapAnimRef.current);
-  }, [localPath, localWaypoints, currentPos, mapScale, mapPan, followRover, homeQuery.data]);
+  }, [localPath, localWaypoints, currentPos, mapScale, mapPan, followRover, homeQuery.data, artifactMarkers]);
 
   // ── Resize map canvas ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -505,27 +521,7 @@ export default function Dashboard() {
         <div className="w-[280px] shrink-0 flex flex-col divide-y divide-border overflow-y-auto">
 
           {/* Primary camera */}
-          <div className="relative bg-black aspect-video shrink-0">
-            <div className="absolute top-1.5 left-1.5 z-10 flex gap-1">
-              <span className="px-1.5 py-0.5 bg-black/70 border border-primary/50 text-primary text-[9px] font-bold">CAM 01</span>
-              {!primaryCameraUrl || camError ? (
-                <span className="px-1.5 py-0.5 bg-red-900/50 border border-red-500 text-red-400 text-[9px] animate-pulse">NO SIGNAL</span>
-              ) : (
-                <span className="px-1.5 py-0.5 bg-green-900/40 border border-green-500/40 text-green-400 text-[9px]">LIVE</span>
-              )}
-            </div>
-            {primaryCameraUrl && !camError ? (
-              <img src={primaryCameraUrl} alt="cam" className="w-full h-full object-cover" onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30 gap-1">
-                <WifiOff className="w-6 h-6" /><span className="text-[9px]">UPLINK LOST</span>
-              </div>
-            )}
-            <Crosshair className="absolute inset-0 m-auto w-10 h-10 text-primary/15 pointer-events-none stroke-1" />
-            <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-primary/30 pointer-events-none" />
-            <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-primary/30 pointer-events-none" />
-            <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-primary/30 pointer-events-none" />
-          </div>
+          <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
 
           {/* Additional camera feeds (from cameras page config) */}
           {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
@@ -586,11 +582,46 @@ export default function Dashboard() {
                 color="#0080ff"
               />
             </div>
-            <div className="flex justify-between mt-1.5 px-1 text-[9px] text-muted-foreground">
-              <span>Wheels: <span className="text-primary font-mono">{rover?.wheelCount ?? "—"}</span></span>
-              <span className={`font-bold ${rover?.connected ? "text-green-400" : "text-red-400"}`}>
-                {rover?.connected ? "● ONLINE" : "● OFFLINE"}
-              </span>
+            {/* Extended telemetry row */}
+            <div className="mt-2 space-y-1 text-[9px] font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Wheels</span>
+                <span className="text-primary">{rover?.wheelCount ?? "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Direction</span>
+                <span className="text-cyan-400 uppercase">{rover?.direction ?? "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">WiFi RSSI</span>
+                <span className="text-yellow-400">— dBm</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">CPU / RAM</span>
+                <span className="text-blue-400">— / —</span>
+              </div>
+              {/* Per-wheel motor indicators */}
+              <div className="pt-1 border-t border-border/40">
+                <div className="text-[8px] text-muted-foreground/50 mb-1 uppercase tracking-wider">Motor Status</div>
+                <div className="grid grid-cols-4 gap-0.5">
+                  {["FL","FR","RL","RR"].map((wh) => (
+                    <div key={wh} className="flex flex-col items-center gap-0.5">
+                      <div className={`w-3 h-3 rounded-sm ${rover?.connected ? "bg-green-500/60" : "bg-muted/20"}`} />
+                      <span className="text-[7px] text-muted-foreground/50">{wh}</span>
+                    </div>
+                  ))}
+                  {(rover?.wheelCount ?? 4) >= 6 && ["ML","MR"].map((wh) => (
+                    <div key={wh} className="flex flex-col items-center gap-0.5">
+                      <div className={`w-3 h-3 rounded-sm ${rover?.connected ? "bg-green-500/60" : "bg-muted/20"}`} />
+                      <span className="text-[7px] text-muted-foreground/50">{wh}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className={`flex items-center justify-between pt-0.5 border-t border-border/40 font-bold ${rover?.connected ? "text-green-400" : "text-red-400"}`}>
+                <span>Link</span>
+                <span>{rover?.connected ? "● ONLINE" : "● OFFLINE"}</span>
+              </div>
             </div>
           </div>
 
@@ -915,5 +946,79 @@ function DKey({ active, onDown, onUp, label }: { active: boolean; onDown: () => 
     >
       {label}
     </button>
+  );
+}
+
+// ── Dashboard camera widget with PTZ overlay ─────────────────────────────────
+function DashCamWidget({ url, camError, onError, onLoad }: { url: string; camError: boolean; onError: () => void; onLoad: () => void }) {
+  const [showPtz, setShowPtz] = useState(false);
+  const [pan, setPan] = useState(0);
+  const [tilt, setTilt] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const ptz = (label: string, dp: number, dt: number, dz: number) => {
+    setPan((p) => Math.max(-90, Math.min(90, p + dp)));
+    setTilt((t) => Math.max(-45, Math.min(45, t + dt)));
+    setZoom((z) => Math.max(1, Math.min(5, z + dz)));
+    setFeedback(label);
+    setTimeout(() => setFeedback(null), 600);
+  };
+  const resetPtz = () => { setPan(0); setTilt(0); setZoom(1); setFeedback("HOME"); setTimeout(() => setFeedback(null), 600); };
+
+  return (
+    <div className="relative bg-black aspect-video shrink-0 group overflow-hidden">
+      {/* Status badges */}
+      <div className="absolute top-1.5 left-1.5 z-10 flex gap-1">
+        <span className="px-1.5 py-0.5 bg-black/70 border border-primary/50 text-primary text-[9px] font-bold">CAM 01</span>
+        {!url || camError
+          ? <span className="px-1.5 py-0.5 bg-red-900/50 border border-red-500 text-red-400 text-[9px] animate-pulse">NO SIGNAL</span>
+          : <span className="px-1.5 py-0.5 bg-green-900/40 border border-green-500/40 text-green-400 text-[9px]">LIVE</span>}
+      </div>
+
+      {/* PTZ toggle */}
+      <button
+        onClick={() => setShowPtz((v) => !v)}
+        className={`absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 text-[8px] font-bold border rounded transition-colors ${showPtz ? "bg-cyan-500/20 border-cyan-500/60 text-cyan-400" : "bg-black/60 border-border text-muted-foreground/50 hover:text-cyan-400 hover:border-cyan-500/30 opacity-0 group-hover:opacity-100"}`}
+      >PTZ</button>
+
+      {/* Image with simulated PTZ transform */}
+      <div className="w-full h-full" style={{ transform: `scale(${zoom}) translate(${-pan * 0.2}%, ${tilt * 0.2}%)`, transition: "transform 0.15s ease" }}>
+        {url && !camError
+          ? <img src={url} alt="cam" className="w-full h-full object-cover" onError={onError} onLoad={onLoad} />
+          : <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30 gap-1">
+              <WifiOff className="w-6 h-6" /><span className="text-[9px]">UPLINK LOST</span>
+            </div>}
+      </div>
+
+      {/* Crosshair */}
+      <Crosshair className="absolute inset-0 m-auto w-10 h-10 text-primary/15 pointer-events-none stroke-1" />
+      <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-primary/30 pointer-events-none" />
+      <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-primary/30 pointer-events-none" />
+      <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-primary/30 pointer-events-none" />
+
+      {/* PTZ D-pad overlay */}
+      {showPtz && (
+        <div className="absolute bottom-1.5 right-1.5 z-10 bg-black/75 border border-cyan-500/20 rounded p-1.5 backdrop-blur-sm">
+          <div className="grid grid-cols-3 gap-0.5 w-16 mb-1">
+            <div />
+            <button onClick={() => ptz("TILT UP", 0, -5, 0)} className="w-5 h-5 flex items-center justify-center border border-cyan-500/20 rounded text-cyan-400/60 hover:text-cyan-400 hover:bg-cyan-500/10 text-[8px]">▲</button>
+            <div />
+            <button onClick={() => ptz("PAN L", -5, 0, 0)} className="w-5 h-5 flex items-center justify-center border border-cyan-500/20 rounded text-cyan-400/60 hover:text-cyan-400 hover:bg-cyan-500/10 text-[8px]">◀</button>
+            <button onClick={resetPtz} className="w-5 h-5 flex items-center justify-center border border-cyan-500/20 rounded text-cyan-400/40 hover:text-cyan-400 hover:bg-cyan-500/10 text-[7px]">⌂</button>
+            <button onClick={() => ptz("PAN R", 5, 0, 0)} className="w-5 h-5 flex items-center justify-center border border-cyan-500/20 rounded text-cyan-400/60 hover:text-cyan-400 hover:bg-cyan-500/10 text-[8px]">▶</button>
+            <div />
+            <button onClick={() => ptz("TILT DN", 0, 5, 0)} className="w-5 h-5 flex items-center justify-center border border-cyan-500/20 rounded text-cyan-400/60 hover:text-cyan-400 hover:bg-cyan-500/10 text-[8px]">▼</button>
+            <div />
+          </div>
+          <div className="flex gap-0.5 justify-center">
+            <button onClick={() => ptz("Z+", 0, 0, 0.5)} className="px-1 py-0.5 text-[8px] border border-cyan-500/20 rounded text-cyan-400/60 hover:text-cyan-400 hover:bg-cyan-500/10">Z+</button>
+            <button onClick={() => ptz("Z-", 0, 0, -0.5)} className="px-1 py-0.5 text-[8px] border border-cyan-500/20 rounded text-cyan-400/60 hover:text-cyan-400 hover:bg-cyan-500/10">Z-</button>
+          </div>
+          {feedback && <div className="text-[7px] text-cyan-400 text-center mt-0.5 animate-pulse font-mono">{feedback}</div>}
+          <div className="text-[7px] text-muted-foreground/40 text-center font-mono mt-0.5">P:{pan > 0 ? "+" : ""}{pan} T:{tilt > 0 ? "+" : ""}{tilt} Z:{zoom.toFixed(1)}×</div>
+        </div>
+      )}
+    </div>
   );
 }

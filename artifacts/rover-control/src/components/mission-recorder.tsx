@@ -161,10 +161,11 @@ export function MissionRecorder({ onClose, rover, wsStatus, currentPos }: Props)
   };
 
   const takePhoto = () => {
-    // Capture telemetry snapshot as the "photo" data (browser security prevents true screenshot without libraries)
+    const now = new Date();
+    const mTime = fmtDur(elapsed);
     const snapshot = {
-      capturedAt: new Date().toISOString(),
-      missionTime: fmtDur(elapsed),
+      capturedAt: now.toISOString(),
+      missionTime: mTime,
       battery: rover?.batteryLevel ?? null,
       speed: rover?.speed ?? null,
       motorTemp: rover?.motorTemperature ?? null,
@@ -172,10 +173,76 @@ export function MissionRecorder({ onClose, rover, wsStatus, currentPos }: Props)
       connected: rover?.connected ?? null,
       position: currentPos ?? null,
     };
-    addEvent("photo", `Telemetry snapshot captured @ T+${fmtDur(elapsed)}`, snapshot);
-    // Visual flash to confirm
-    document.body.style.filter = "brightness(1.5)";
-    setTimeout(() => { document.body.style.filter = ""; }, 150);
+    addEvent("photo", `Snapshot captured @ T+${mTime}`, snapshot);
+
+    // Generate a telemetry data card PNG via Canvas API
+    try {
+      const W = 480, H = 240;
+      const c = document.createElement("canvas");
+      c.width = W; c.height = H;
+      const ctx = c.getContext("2d")!;
+
+      // Background
+      ctx.fillStyle = "#07090f"; ctx.fillRect(0, 0, W, H);
+      // Border
+      ctx.strokeStyle = "#cc44ff"; ctx.lineWidth = 1.5; ctx.strokeRect(1, 1, W - 2, H - 2);
+      // Corner accents
+      [[ 0, 0, 1, 0 ], [ 0, 0, 0, 1 ], [ 1, 0, 0, 0 ], [ 1, 0, 1, 0 ],
+       [ 0, 1, 1, 1 ], [ 0, 1, 0, 0 ], [ 1, 1, 0, 1 ], [ 1, 1, 1, 1 ]].forEach(() => {});
+      ctx.strokeStyle = "#cc44ff44"; ctx.lineWidth = 1;
+      const cs = 14;
+      [[0,0,1,0],[0,0,0,1]].forEach(([sx,sy,ex,ey]) =>
+        void (ctx.beginPath(), ctx.moveTo(sx*(W-1),sy*(H-1)), ctx.lineTo(sx*(W-1)+ex*cs,sy*(H-1)+ey*cs), ctx.stroke()));
+      ctx.strokeStyle = "#cc44ff80";
+
+      // Header
+      ctx.fillStyle = "#cc44ff"; ctx.font = "bold 11px monospace";
+      ctx.fillText("MISSION SNAPSHOT", 12, 22);
+      ctx.fillStyle = "#555"; ctx.font = "9px monospace";
+      ctx.fillText(now.toLocaleString(), 12, 36);
+      ctx.fillText(`T+ ${mTime}`, W - 80, 22);
+
+      // Divider
+      ctx.strokeStyle = "#cc44ff30"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(12, 44); ctx.lineTo(W - 12, 44); ctx.stroke();
+
+      // Telemetry grid
+      const rows: [string, string, string][] = [
+        ["Battery",    `${rover?.batteryLevel ?? "—"}%`,             rover?.batteryLevel !== undefined && rover.batteryLevel <= 20 ? "#ff4444" : "#00e676"],
+        ["Speed",      `${rover?.speed?.toFixed(2) ?? "—"} m/s`,     "#00f5ff"],
+        ["Motor Temp", `${rover?.motorTemperature ?? "—"}°C`,        "#ffb000"],
+        ["Direction",  (rover?.direction ?? "—").toUpperCase(),       "#4fc3f7"],
+        ["Link",       rover?.connected ? "ONLINE" : "OFFLINE",       rover?.connected ? "#00e676" : "#ff4444"],
+        ["Pos X",      currentPos ? `${currentPos.x.toFixed(2)}m` : "—", "#aaa"],
+        ["Pos Y",      currentPos ? `${currentPos.y.toFixed(2)}m` : "—", "#aaa"],
+        ["Heading",    currentPos ? `${Math.round(currentPos.headingDeg)}°` : "—", "#aaa"],
+      ];
+
+      const colW = (W - 24) / 2;
+      rows.forEach(([label, value, color], i) => {
+        const col = i % 2, row = Math.floor(i / 2);
+        const x = 12 + col * colW, y = 60 + row * 42;
+        ctx.fillStyle = "#333"; ctx.font = "8px monospace"; ctx.fillText(label.toUpperCase(), x, y);
+        ctx.fillStyle = color; ctx.font = "bold 15px monospace"; ctx.fillText(value, x, y + 16);
+      });
+
+      // Footer
+      ctx.fillStyle = "#333"; ctx.font = "8px monospace";
+      ctx.fillText("TEC-CODE // ROVER CONTROL — MISSION DATA", 12, H - 8);
+
+      // Download
+      c.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `snapshot-${Date.now()}.png`; a.click();
+        URL.revokeObjectURL(url);
+      }, "image/png");
+    } catch { /* canvas unavailable */ }
+
+    // Visual flash
+    document.body.style.filter = "brightness(1.6)";
+    setTimeout(() => { document.body.style.filter = ""; }, 120);
   };
 
   const addManualEvent = (type: MissionEvent["type"], msg: string) => {
