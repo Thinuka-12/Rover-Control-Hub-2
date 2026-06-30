@@ -183,6 +183,44 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
           </div>
         )}
 
+        {/* Route planning status indicator */}
+        <div className="px-4 py-2 border-b border-border bg-black/20 shrink-0">
+          <div className="flex items-center justify-between gap-3 text-[9px] font-mono">
+            {/* Planning phase */}
+            {(() => {
+              const planPhase: "PLANNING" | "EXECUTING" | "IDLE" =
+                !isEnabled && !simMode ? "IDLE"
+                : autoQuery.data?.pathPlanning && isEnabled ? "PLANNING"
+                : "EXECUTING";
+              const phaseColor = planPhase === "PLANNING" ? "#ffb000" : planPhase === "EXECUTING" ? "#00e676" : "#555";
+              return (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground/50 uppercase tracking-wider">Route</span>
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 border rounded"
+                    style={{ borderColor: `${phaseColor}40`, background: `${phaseColor}0d` }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: phaseColor, boxShadow: planPhase !== "IDLE" ? `0 0 6px ${phaseColor}` : "none", animation: planPhase === "PLANNING" ? "pulse 1s infinite" : "none" }} />
+                    <span style={{ color: phaseColor }}>{planPhase}</span>
+                  </div>
+                </div>
+              );
+            })()}
+            {/* Obstacle avoidance */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground/50 uppercase tracking-wider">Obstacles</span>
+              <span className={autoQuery.data?.obstacleAvoidance ? "text-green-400" : "text-muted-foreground/40"}>
+                {autoQuery.data?.obstacleAvoidance ? "● AVOIDANCE ON" : "○ OFF"}
+              </span>
+            </div>
+            {/* Path planning flag */}
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground/50">Path</span>
+              <span className={autoQuery.data?.pathPlanning ? "text-cyan-400" : "text-muted-foreground/40"}>
+                {autoQuery.data?.pathPlanning ? "PLANNING" : "DIRECT"}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Sim mode warning banner */}
         {simMode && (
           <div className="px-4 py-2 border-b bg-blue-500/8 border-blue-500/20 shrink-0 flex items-start gap-2 text-[10px]">

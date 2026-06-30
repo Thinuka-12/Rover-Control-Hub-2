@@ -67,22 +67,28 @@ export function MissionRecorder({ onClose, rover, wsStatus, currentPos }: Props)
     return () => clearInterval(iv);
   }, [recording]);
 
-  // Auto telemetry snapshot every 30 seconds
+  // Stable refs so interval callback can read latest values without being in deps
+  const elapsedRef = useRef(0);
+  const currentPosRef = useRef(currentPos);
+  useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
+  useEffect(() => { currentPosRef.current = currentPos; }, [currentPos]);
+
+  // Auto telemetry snapshot every 30 seconds — deps intentionally exclude elapsed/currentPos
   useEffect(() => {
     if (!recording || !rover) return;
     const iv = setInterval(() => {
-      addEvent("telemetry", `Telemetry snapshot @ T+${fmtDur(elapsed)}`, {
+      const pos = currentPosRef.current;
+      addEvent("telemetry", `Telemetry snapshot @ T+${fmtDur(elapsedRef.current)}`, {
         battery: rover.batteryLevel,
         speed: rover.speed,
         motorTemp: rover.motorTemperature,
         direction: rover.direction,
         connected: rover.connected,
-        position: currentPos ? { x: currentPos.x, y: currentPos.y, headingDeg: currentPos.headingDeg } : null,
+        position: pos ? { x: pos.x, y: pos.y, headingDeg: pos.headingDeg } : null,
       });
     }, 30000);
     return () => clearInterval(iv);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording, rover, elapsed]);
+  }, [recording, rover, addEvent]);
 
   // Battery warning
   useEffect(() => {
