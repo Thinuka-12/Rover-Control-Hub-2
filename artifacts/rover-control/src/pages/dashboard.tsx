@@ -24,7 +24,7 @@ import {
   Battery, Thermometer, Wind, Bluetooth, BluetoothOff, Radio, Target,
   Circle, Square, MapPin, ZoomIn, ZoomOut, Navigation, RotateCcw,
   Grab, Home, WifiOff, Activity, Crosshair, Settings, Map, Shield, Eye,
-  Scan, Glasses, Film,
+  Scan, Glasses, Film, ChevronDown,
 } from "lucide-react";
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
@@ -78,6 +78,7 @@ export default function Dashboard() {
 
   // ── Operator role ─────────────────────────────────────────────────────────────
   const { operator, hasRole, assignRole, canDrive, canArm, canAutonom, currentMeta } = useOperatorRole();
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showAutoPanel, setShowAutoPanel] = useState(false);
   const [showVr, setShowVr] = useState(false);
   const [showMission, setShowMission] = useState(false);
@@ -420,16 +421,57 @@ export default function Dashboard() {
             AUTO {autoData?.enabled ? `● ${(autoData.mode ?? "").toUpperCase()}` : "OFF"}
           </button>
 
-          {/* Operator role badge */}
-          <button
-            onClick={() => assignRole(operator?.role ?? "pilot", operator?.name ?? "")}
-            className="flex items-center gap-1.5 px-2 py-0.5 border border-border rounded shrink-0 hover:border-primary/50 transition-colors"
-            title={`${currentMeta.label} — ${operator?.name ?? "unidentified"}`}
-          >
-            <Shield className="w-3 h-3" style={{ color: currentMeta.color }} />
-            <span className="text-[10px] font-bold" style={{ color: currentMeta.color }}>{currentMeta.label}</span>
-            {operator && <span className="text-[9px] text-muted-foreground/60 ml-0.5">{operator.name.slice(0, 10)}</span>}
-          </button>
+          {/* Operator role switcher */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowRoleSwitcher((v) => !v)}
+              className="flex items-center gap-1.5 px-2 py-0.5 border rounded hover:border-primary/50 transition-colors"
+              style={{ borderColor: `${currentMeta.color}40` }}
+              title="Switch operator role"
+            >
+              <Shield className="w-3 h-3" style={{ color: currentMeta.color }} />
+              <span className="text-[10px] font-bold" style={{ color: currentMeta.color }}>{currentMeta.label}</span>
+              <ChevronDown className="w-2.5 h-2.5 ml-0.5 text-muted-foreground/60" />
+            </button>
+
+            {showRoleSwitcher && (
+              <>
+                {/* Backdrop to close */}
+                <div className="fixed inset-0 z-40" onClick={() => setShowRoleSwitcher(false)} />
+                <div className="absolute left-0 top-full mt-1 z-50 bg-black/95 border border-border rounded-lg shadow-2xl overflow-hidden min-w-52 font-mono backdrop-blur-md">
+                  <div className="px-3 py-2 border-b border-border">
+                    <span className="text-[9px] text-muted-foreground/60 tracking-widest uppercase">Switch Role</span>
+                  </div>
+                  {([
+                    { role: "pilot" as const,    label: "PILOT",     color: "#00e676", desc: "Full command authority",    icon: "🛡" },
+                    { role: "co-pilot" as const, label: "CO-PILOT",  color: "#ffb000", desc: "Drive & sensor monitoring", icon: "⚙" },
+                    { role: "observer" as const, label: "OBSERVER",  color: "#888",    desc: "Read-only live feed",       icon: "👁" },
+                  ]).map((r) => {
+                    const active = operator?.role === r.role;
+                    return (
+                      <button key={r.role}
+                        onClick={() => { assignRole(r.role, operator?.name ?? ""); setShowRoleSwitcher(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                        style={{ background: active ? `${r.color}0d` : undefined }}
+                      >
+                        <span className="text-base leading-none">{r.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold tracking-wide" style={{ color: r.color }}>{r.label}</span>
+                            {active && (
+                              <span className="text-[8px] px-1 py-0 border rounded" style={{ borderColor: `${r.color}50`, color: r.color }}>ACTIVE</span>
+                            )}
+                          </div>
+                          <div className="text-[9px] text-muted-foreground/60 mt-0.5">{r.desc}</div>
+                        </div>
+                        {active && <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.color }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Nav links */}
           {/* Feature panel buttons */}
