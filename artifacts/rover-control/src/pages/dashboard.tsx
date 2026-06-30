@@ -971,28 +971,24 @@ function DashCamWidget({ url, camError, onError, onLoad }: { url: string; camErr
           ? <span className="px-1.5 py-0.5 bg-red-900/50 border border-red-500 text-red-400 text-[9px] animate-pulse">NO SIGNAL</span>
           : <span className="px-1.5 py-0.5 bg-green-900/40 border border-green-500/40 text-green-400 text-[9px]">LIVE</span>}
       </div>
-
       {/* PTZ toggle */}
       <button
         onClick={() => setShowPtz((v) => !v)}
         className={`absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 text-[8px] font-bold border rounded transition-colors ${showPtz ? "bg-cyan-500/20 border-cyan-500/60 text-cyan-400" : "bg-black/60 border-border text-muted-foreground/50 hover:text-cyan-400 hover:border-cyan-500/30 opacity-0 group-hover:opacity-100"}`}
       >PTZ</button>
-
       {/* Image with simulated PTZ transform */}
       <div className="w-full h-full" style={{ transform: `scale(${zoom}) translate(${-pan * 0.2}%, ${tilt * 0.2}%)`, transition: "transform 0.15s ease" }}>
         {url && !camError
           ? <img src={url} alt="cam" className="w-full h-full object-cover" onError={onError} onLoad={onLoad} />
-          : <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/30 gap-1">
+          : <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 gap-1 text-center flex-col bg-[color:var(--color-black)]">
               <WifiOff className="w-6 h-6" /><span className="text-[9px]">UPLINK LOST</span>
             </div>}
       </div>
-
       {/* Crosshair */}
       <Crosshair className="absolute inset-0 m-auto w-10 h-10 text-primary/15 pointer-events-none stroke-1" />
       <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-primary/30 pointer-events-none" />
       <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-primary/30 pointer-events-none" />
       <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-primary/30 pointer-events-none" />
-
       {/* PTZ D-pad overlay */}
       {showPtz && (
         <div className="absolute bottom-1.5 right-1.5 z-10 bg-black/75 border border-cyan-500/20 rounded p-1.5 backdrop-blur-sm">
