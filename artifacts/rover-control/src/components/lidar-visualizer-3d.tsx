@@ -332,7 +332,10 @@ function LidarVisualizer3DInner({ lidarData, className }: Props) {
 
   return (
     <div className={className} style={{ position: "relative", width: "100%", height: "100%" }}>
-      <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%", cursor: "grab" }} />
+      <canvas
+        ref={canvasRef}
+        style={{ display: "block", width: "100%", height: "100%", cursor: "grab" }}
+        className="text-[color:var(--neon-green)] bg-[color:var(--button-outline)] border-t-[color:var(--neon-green)] border-r-[color:var(--neon-green)] border-b-[color:var(--neon-green)] border-l-[color:var(--neon-green)]" />
       {/* HUD overlay */}
       <div style={{ position: "absolute", top: 8, left: 10, pointerEvents: "none" }} className="font-mono text-[9px] space-y-0.5">
         <div className="text-[#00e676]/60">● LIDAR 3D</div>
