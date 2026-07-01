@@ -548,7 +548,7 @@ export default function Dashboard() {
                 <DKey active={activeKey === "right"} onDown={() => { handleDrive("right"); setActiveKey("right"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="D" />
                 <div />
                 <DKey active={activeKey === "down"} onDown={() => { handleDrive("backward"); setActiveKey("down"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="S" />
-                <div />
+                <div className="bg-[color:var(--color-gray-50)]" />
               </div>
             </div>
 
