@@ -672,7 +672,7 @@ export default function Dashboard() {
           {/* ── CENTER PANEL (flex-1) ──────────────────────────────────────── */}
           <div className="flex-1 flex flex-col min-w-0">
             {/* Center tab bar */}
-            <div className="flex items-center gap-2 px-3 h-9 border-b border-border bg-black/30 shrink-0">
+            <div className="flex items-center gap-2 px-3 h-9 border-b border-border bg-black/30 shrink-0 font-medium">
               <button onClick={() => setCenterView("map")}
                 className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
                 <Map className="w-3 h-3" /> MAP
