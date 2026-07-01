@@ -748,7 +748,7 @@ export default function Dashboard() {
 
             {/* Sensors tab */}
             {rightTab === "sensors" && (
-              <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-[color:var(--color-red-50)]">
                 {/* Ultrasonic */}
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase border-b border-border/50 pb-1 mb-2">Ultrasonic (UR)</p>
