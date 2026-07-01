@@ -232,10 +232,10 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
         )}
 
         {/* Scroll region */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto bg-[color:var(--color-gray-50)]">
 
           {/* Mode cards */}
-          <div className="p-4 space-y-2">
+          <div className="p-4 space-y-2 bg-[color:var(--color-gray-50)]">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-3">Select Mode</div>
 
             {MODES.map((m) => {
@@ -314,7 +314,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
           )}
 
           {/* Home position section */}
-          <div className="px-4 pb-4 space-y-2">
+          <div className="px-4 pb-4 space-y-2 bg-[color:var(--color-gray-50)]">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Home Position</div>
             {homeData ? (
               <div className="border border-border rounded p-3 text-[10px] space-y-1 bg-black/20">
@@ -348,7 +348,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
           </div>
 
           {/* Waypoints */}
-          <div className="px-4 pb-4 space-y-2">
+          <div className="px-4 pb-4 space-y-2 bg-[color:var(--color-gray-50)]">
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
               Waypoints <span className="text-primary">{waypoints.length}</span>
             </div>
