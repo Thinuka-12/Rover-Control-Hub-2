@@ -348,7 +348,7 @@ export default function Dashboard() {
       <div className="flex flex-col h-screen w-screen bg-background overflow-hidden font-mono text-xs">
 
         {/* ── HEADER STATUS BAR ─────────────────────────────────────────────── */}
-        <header className="flex px-3 h-11 border-b border-border bg-black/60 shrink-0 overflow-x-auto gap-[6px] text-center justify-center items-center pl-[10px] pr-[10px] border-t-[color:var(--color-cyan-300)] border-r-[color:var(--color-cyan-300)] border-b-[color:var(--color-cyan-300)] border-l-[color:var(--color-cyan-300)] font-thin flex-col">
+        <header className="flex px-3 h-11 border-b border-border bg-black/60 shrink-0 overflow-x-auto gap-[6px] text-center border-t-[color:var(--color-cyan-300)] border-r-[color:var(--color-cyan-300)] border-b-[color:var(--color-cyan-300)] border-l-[color:var(--color-cyan-300)] font-extrabold flex-row justify-between items-start pl-[8px] pr-[8px]">
           {/* Logo */}
           <div className="flex items-center gap-1.5 shrink-0 mr-2">
             <Activity className="w-4 h-4 text-primary" />
