@@ -157,7 +157,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
         style={{ boxShadow: "0 0 40px rgba(0,245,255,0.06) inset" }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-primary/20 bg-black/40 shrink-0">
+        <div className="flex px-4 py-3 border-b border-primary/20 shrink-0 justify-between items-start flex-row text-center bg-[color:var(--color-red-50)]">
           <div className="flex items-center gap-2">
             <Navigation className="w-4 h-4 text-primary" />
             <span className="font-bold text-[12px] tracking-widest text-primary">AUTONOMOUS MODE</span>
@@ -184,7 +184,7 @@ export function AutonomousPanel({ onClose, currentPos, waypoints, canAutonom, ho
         )}
 
         {/* Route planning status indicator */}
-        <div className="px-4 py-2 border-b border-border bg-black/20 shrink-0">
+        <div className="px-4 py-2 border-b border-border shrink-0 bg-[color:var(--color-red-50)]">
           <div className="flex items-center justify-between gap-3 text-[9px] font-mono">
             {/* Planning phase */}
             {(() => {
