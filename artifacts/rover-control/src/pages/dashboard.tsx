@@ -687,6 +687,38 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
+
+            {/* ── Role switcher strip ─────────────────────────────────────────── */}
+            <div className="mt-auto shrink-0 border-t border-border bg-black/60">
+              <div className="px-2 pt-2 pb-0.5">
+                <span className="text-[9px] text-muted-foreground/50 uppercase tracking-widest font-mono">Role</span>
+              </div>
+              <div className="flex divide-x divide-border">
+                {([
+                  { role: "pilot"    as const, label: "PILOT",    color: "#00e676", icon: "🛡" },
+                  { role: "co-pilot" as const, label: "CO-PILOT", color: "#ffb000", icon: "⚙" },
+                  { role: "observer" as const, label: "OBSERVER", color: "#888",    icon: "👁" },
+                ] as const).map((r) => {
+                  const active = operator?.role === r.role;
+                  return (
+                    <button
+                      key={r.role}
+                      onClick={() => assignRole(r.role, operator?.name ?? "")}
+                      className="flex-1 flex flex-col items-center justify-center gap-0.5 py-3 min-h-[56px] transition-colors font-mono"
+                      style={{
+                        background: active ? `${r.color}18` : undefined,
+                        borderBottom: active ? `2px solid ${r.color}` : "2px solid transparent",
+                      }}
+                    >
+                      <span className="text-base leading-none">{r.icon}</span>
+                      <span className="text-[9px] font-bold tracking-wider" style={{ color: active ? r.color : "#555" }}>
+                        {r.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* ── CENTER PANEL (flex-1) ──────────────────────────────────────── */}
