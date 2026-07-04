@@ -947,7 +947,7 @@ function DashCamWidget({ url, camError, onError, onLoad }: { url: string; camErr
   const resetPtz = () => { setPan(0); setTilt(0); setZoom(1); setFeedback("HOME"); setTimeout(() => setFeedback(null), 600); };
 
   return (
-    <div className="relative bg-black aspect-video shrink-0 group overflow-hidden">
+    <div className="relative bg-black shrink-0 group overflow-hidden" style={{ minHeight: 240, maxHeight: 300 }}>
       {/* Status badges */}
       <div className="absolute top-1.5 left-1.5 z-10 flex gap-1">
         <span className="px-1.5 py-0.5 bg-black/70 border border-primary/50 text-primary text-[9px] font-bold">CAM 01</span>
@@ -961,11 +961,11 @@ function DashCamWidget({ url, camError, onError, onLoad }: { url: string; camErr
         className={`absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 text-[8px] font-bold border rounded transition-colors ${showPtz ? "bg-cyan-500/20 border-cyan-500/60 text-cyan-400" : "bg-black/60 border-border text-muted-foreground/50 hover:text-cyan-400 hover:border-cyan-500/30 opacity-0 group-hover:opacity-100"}`}
       >PTZ</button>
       {/* Image with simulated PTZ transform */}
-      <div className="w-full h-full" style={{ transform: `scale(${zoom}) translate(${-pan * 0.2}%, ${tilt * 0.2}%)`, transition: "transform 0.15s ease" }}>
+      <div className="absolute inset-0" style={{ transform: `scale(${zoom}) translate(${-pan * 0.2}%, ${tilt * 0.2}%)`, transition: "transform 0.15s ease" }}>
         {url && !camError
           ? <img src={url} alt="cam" className="w-full h-full object-cover" onError={onError} onLoad={onLoad} />
-          : <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 gap-1 text-center flex-col bg-[color:var(--color-black)]">
-              <WifiOff className="w-6 h-6" /><span className="text-[9px]">UPLINK LOST</span>
+          : <div className="w-full h-full flex items-center justify-center text-muted-foreground/30 gap-2 text-center flex-col">
+              <WifiOff className="w-8 h-8" /><span className="text-xs tracking-widest">UPLINK LOST</span>
             </div>}
       </div>
       {/* Crosshair */}
