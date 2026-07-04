@@ -519,25 +519,58 @@ export default function Dashboard() {
           {/* ── LEFT PANEL (300px) ─────────────────────────────────────────── */}
           <div className="w-[300px] shrink-0 flex flex-col divide-y divide-border overflow-y-auto">
 
-            {/* Primary camera */}
-            <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
-
-            {/* Additional camera feeds (from cameras page config) */}
-            {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
-              <div key={f.id} className="relative bg-black shrink-0" style={{ aspectRatio: "16/9" }}>
-                <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
-                <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
+            {/* Primary camera — size depends on role */}
+            {operator?.role === "observer" ? (
+              /* Observer: camera fills the entire left panel */
+              <div className="flex-1 flex flex-col min-h-0">
+                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} grow />
+                {/* Extra camera feeds for observer */}
+                {cameraFeeds.slice(0, 3).map((f) => f.url && f.status === "connected" ? (
+                  <div key={f.id} className="relative bg-black shrink-0" style={{ height: 120 }}>
+                    <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
+                    <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
+                  </div>
+                ) : null)}
               </div>
-            ) : null)}
-
-            {/* Joystick */}
-            <div className="p-4 shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Drive Control</span>
-                <button onClick={() => handleDrive("stop")} className="text-xs border-2 border-destructive text-destructive hover:bg-destructive/20 px-4 py-2 rounded font-bold min-h-[40px] active:bg-destructive active:text-white transition-colors">⏹ STOP</button>
-              </div>
-              <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} size={220} />
-            </div>
+            ) : operator?.role === "co-pilot" ? (
+              /* Co-pilot: taller camera, joystick beneath */
+              <>
+                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} tall />
+                {cameraFeeds.slice(0, 1).map((f) => f.url && f.status === "connected" ? (
+                  <div key={f.id} className="relative bg-black shrink-0" style={{ height: 100 }}>
+                    <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
+                    <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
+                  </div>
+                ) : null)}
+                {/* Joystick for co-pilot */}
+                <div className="p-4 shrink-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Drive Control</span>
+                    <button onClick={() => handleDrive("stop")} className="text-xs border-2 border-destructive text-destructive hover:bg-destructive/20 px-4 py-2 rounded font-bold min-h-[40px] active:bg-destructive active:text-white transition-colors">⏹ STOP</button>
+                  </div>
+                  <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} size={200} />
+                </div>
+              </>
+            ) : (
+              /* Pilot: standard camera + joystick */
+              <>
+                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
+                {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
+                  <div key={f.id} className="relative bg-black shrink-0" style={{ aspectRatio: "16/9" }}>
+                    <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
+                    <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
+                  </div>
+                ) : null)}
+                {/* Joystick for pilot */}
+                <div className="p-4 shrink-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Drive Control</span>
+                    <button onClick={() => handleDrive("stop")} className="text-xs border-2 border-destructive text-destructive hover:bg-destructive/20 px-4 py-2 rounded font-bold min-h-[40px] active:bg-destructive active:text-white transition-colors">⏹ STOP</button>
+                  </div>
+                  <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} size={220} />
+                </div>
+              </>
+            )}
 
             {/* Telemetry arc gauges */}
             <div className="p-3 shrink-0">
@@ -930,7 +963,7 @@ function DKey({ active, onDown, onUp, label }: { active: boolean; onDown: () => 
 }
 
 // ── Dashboard camera widget with PTZ overlay ─────────────────────────────────
-function DashCamWidget({ url, camError, onError, onLoad }: { url: string; camError: boolean; onError: () => void; onLoad: () => void }) {
+function DashCamWidget({ url, camError, onError, onLoad, grow, tall }: { url: string; camError: boolean; onError: () => void; onLoad: () => void; grow?: boolean; tall?: boolean }) {
   const [showPtz, setShowPtz] = useState(false);
   const [pan, setPan] = useState(0);
   const [tilt, setTilt] = useState(0);
@@ -947,7 +980,7 @@ function DashCamWidget({ url, camError, onError, onLoad }: { url: string; camErr
   const resetPtz = () => { setPan(0); setTilt(0); setZoom(1); setFeedback("HOME"); setTimeout(() => setFeedback(null), 600); };
 
   return (
-    <div className="relative bg-black shrink-0 group overflow-hidden" style={{ minHeight: 240, maxHeight: 300 }}>
+    <div className={`relative bg-black group overflow-hidden ${grow ? "flex-1 min-h-0" : "shrink-0"}`} style={grow ? undefined : { minHeight: tall ? 380 : 240, maxHeight: tall ? 460 : 300 }}>
       {/* Status badges */}
       <div className="absolute top-1.5 left-1.5 z-10 flex gap-1">
         <span className="px-1.5 py-0.5 bg-black/70 border border-primary/50 text-primary text-[9px] font-bold">CAM 01</span>
