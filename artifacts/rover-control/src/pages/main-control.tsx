@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Battery, Thermometer, Wind, Target, AlertTriangle, Crosshair, Bluetooth, BluetoothOff, Wifi, WifiOff, Radio } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Joystick } from "@/components/Joystick";
 
 export default function MainControl() {
   const { settings, getEffectiveCameraUrl } = useLocalSettings();
@@ -328,35 +329,23 @@ export default function MainControl() {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Drive D-pad */}
+            {/* Joystick */}
             <Card className="border-border bg-card">
               <CardHeader className="py-3 border-b border-border">
                 <CardTitle className="text-sm font-bold tracking-widest flex items-center justify-between">
                   DRIVE CONTROL
-                  <span className="text-[10px] text-muted-foreground font-normal">WASD / ARROWS</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-[10px] h-6 px-2 border-destructive/50 text-destructive hover:bg-destructive/20"
+                    onClick={() => handleDriveCommand("stop")}
+                  >
+                    STOP
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6 flex justify-center items-center">
-                <div className="grid grid-cols-3 grid-rows-3 gap-2 w-44 h-44">
-                  <div />
-                  <Button variant="outline" className={`h-full w-full border-primary/50 text-primary font-bold ${activeKey === "up" ? "bg-primary text-primary-foreground" : "hover:bg-primary/20"}`}
-                    onMouseDown={() => handlePadDown("forward")} onMouseUp={handlePadUp} onMouseLeave={handlePadUp}
-                    onTouchStart={() => handlePadDown("forward")} onTouchEnd={handlePadUp}>W</Button>
-                  <div />
-                  <Button variant="outline" className={`h-full w-full border-primary/50 text-primary font-bold ${activeKey === "left" ? "bg-primary text-primary-foreground" : "hover:bg-primary/20"}`}
-                    onMouseDown={() => handlePadDown("left")} onMouseUp={handlePadUp} onMouseLeave={handlePadUp}
-                    onTouchStart={() => handlePadDown("left")} onTouchEnd={handlePadUp}>A</Button>
-                  <Button variant="outline" className={`h-full w-full border-destructive text-destructive hover:bg-destructive/20 font-bold text-xs ${activeKey === "stop" ? "bg-destructive text-white" : ""}`}
-                    onClick={() => handleDriveCommand("stop")}>STOP</Button>
-                  <Button variant="outline" className={`h-full w-full border-primary/50 text-primary font-bold ${activeKey === "right" ? "bg-primary text-primary-foreground" : "hover:bg-primary/20"}`}
-                    onMouseDown={() => handlePadDown("right")} onMouseUp={handlePadUp} onMouseLeave={handlePadUp}
-                    onTouchStart={() => handlePadDown("right")} onTouchEnd={handlePadUp}>D</Button>
-                  <div />
-                  <Button variant="outline" className={`h-full w-full border-primary/50 text-primary font-bold ${activeKey === "down" ? "bg-primary text-primary-foreground" : "hover:bg-primary/20"}`}
-                    onMouseDown={() => handlePadDown("backward")} onMouseUp={handlePadUp} onMouseLeave={handlePadUp}
-                    onTouchStart={() => handlePadDown("backward")} onTouchEnd={handlePadUp}>S</Button>
-                  <div />
-                </div>
+                <Joystick onCommand={handleDriveCommand} activeKey={activeKey} />
               </CardContent>
             </Card>
 
