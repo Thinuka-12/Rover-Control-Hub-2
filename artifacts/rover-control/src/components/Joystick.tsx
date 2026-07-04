@@ -5,11 +5,12 @@ type Direction = "forward" | "backward" | "left" | "right" | "stop";
 interface JoystickProps {
   onCommand: (cmd: Direction) => void;
   activeKey?: string | null;
+  size?: number;
 }
 
-const DEAD_ZONE = 0.2;
+const DEAD_ZONE = 0.18;
 
-export function Joystick({ onCommand, activeKey }: JoystickProps) {
+export function Joystick({ onCommand, activeKey, size = 200 }: JoystickProps) {
   const baseRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const activeCmd = useRef<Direction | null>(null);
@@ -60,7 +61,6 @@ export function Joystick({ onCommand, activeKey }: JoystickProps) {
     onCommand("stop");
   }, [onCommand]);
 
-  // Touch handlers
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     isDragging.current = true;
@@ -80,7 +80,6 @@ export function Joystick({ onCommand, activeKey }: JoystickProps) {
     resetKnob();
   }, [resetKnob]);
 
-  // Mouse handlers
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     isDragging.current = true;
     moveKnob(e.clientX, e.clientY);
@@ -103,17 +102,18 @@ export function Joystick({ onCommand, activeKey }: JoystickProps) {
     };
   }, [moveKnob, resetKnob]);
 
+  const knobSize = Math.round(size * 0.28);
   const dirFromKey = activeKey === "up" ? "forward" : activeKey === "down" ? "backward" : activeKey === "left" ? "left" : activeKey === "right" ? "right" : null;
-  const keyKnobX = dirFromKey === "left" ? -28 : dirFromKey === "right" ? 28 : 0;
-  const keyKnobY = dirFromKey === "forward" ? -28 : dirFromKey === "backward" ? 28 : 0;
+  const maxTravel = size * 0.275;
+  const keyKnobX = dirFromKey === "left" ? -maxTravel : dirFromKey === "right" ? maxTravel : 0;
+  const keyKnobY = dirFromKey === "forward" ? -maxTravel : dirFromKey === "backward" ? maxTravel : 0;
 
   return (
-    <div className="flex flex-col items-center gap-3 select-none">
-      {/* Base */}
+    <div className="flex flex-col items-center gap-3 select-none w-full">
       <div
         ref={baseRef}
         className="relative rounded-full border-2 border-primary/40 bg-primary/5 flex items-center justify-center touch-none cursor-none"
-        style={{ width: 160, height: 160, boxShadow: "0 0 24px rgba(255,176,0,0.08) inset" }}
+        style={{ width: size, height: size, boxShadow: "0 0 32px rgba(255,176,0,0.07) inset", flexShrink: 0 }}
         onMouseDown={onMouseDown}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -121,38 +121,38 @@ export function Joystick({ onCommand, activeKey }: JoystickProps) {
         onTouchCancel={onTouchEnd}
       >
         {/* Ring guides */}
-        <div className="absolute rounded-full border border-primary/10" style={{ width: 100, height: 100 }} />
-        <div className="absolute rounded-full border border-primary/10" style={{ width: 50, height: 50 }} />
+        <div className="absolute rounded-full border border-primary/10" style={{ width: size * 0.63, height: size * 0.63 }} />
+        <div className="absolute rounded-full border border-primary/10" style={{ width: size * 0.32, height: size * 0.32 }} />
 
         {/* Crosshair lines */}
         <div className="absolute w-full h-px bg-primary/10" />
         <div className="absolute h-full w-px bg-primary/10" />
 
         {/* Direction labels */}
-        <span className="absolute top-2 text-[9px] text-primary/40 font-mono tracking-widest">FWD</span>
-        <span className="absolute bottom-2 text-[9px] text-primary/40 font-mono tracking-widest">REV</span>
-        <span className="absolute left-2 text-[9px] text-primary/40 font-mono tracking-widest" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>L</span>
-        <span className="absolute right-2 text-[9px] text-primary/40 font-mono tracking-widest" style={{ writingMode: "vertical-rl" }}>R</span>
+        <span className="absolute top-3 text-[11px] text-primary/50 font-mono tracking-widest font-bold">FWD</span>
+        <span className="absolute bottom-3 text-[11px] text-primary/50 font-mono tracking-widest font-bold">REV</span>
+        <span className="absolute left-3 text-[11px] text-primary/50 font-mono font-bold">L</span>
+        <span className="absolute right-3 text-[11px] text-primary/50 font-mono font-bold">R</span>
 
         {/* Knob */}
         <div
           ref={knobRef}
           className="absolute rounded-full border-2 border-primary bg-primary/20 flex items-center justify-center pointer-events-none"
           style={{
-            width: 52,
-            height: 52,
+            width: knobSize,
+            height: knobSize,
             transition: isDragging.current ? "none" : "transform 0.15s ease-out",
             transform: !isDragging.current && dirFromKey
               ? `translate(${keyKnobX}px, ${keyKnobY}px)`
               : "translate(0px, 0px)",
-            boxShadow: "0 0 12px rgba(255,176,0,0.35)",
+            boxShadow: "0 0 16px rgba(255,176,0,0.4)",
           }}
         >
-          <div className="w-3 h-3 rounded-full bg-primary/70" />
+          <div className="rounded-full bg-primary/70" style={{ width: knobSize * 0.35, height: knobSize * 0.35 }} />
         </div>
       </div>
 
-      <p className="text-[10px] text-muted-foreground font-mono tracking-wider">DRAG TO STEER • WASD STILL WORKS</p>
+      <p className="text-[10px] text-muted-foreground font-mono tracking-wider text-center">DRAG TO STEER</p>
     </div>
   );
 }

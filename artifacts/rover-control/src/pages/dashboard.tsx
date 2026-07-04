@@ -349,92 +349,92 @@ export default function Dashboard() {
       <div className="flex flex-col h-screen w-screen bg-background overflow-hidden font-mono text-xs">
 
         {/* ── HEADER STATUS BAR ─────────────────────────────────────────────── */}
-        <header className="flex px-3 h-11 border-b border-border bg-black/60 shrink-0 overflow-x-auto gap-[6px] text-center border-t-[color:var(--color-cyan-300)] border-r-[color:var(--color-cyan-300)] border-b-[color:var(--color-cyan-300)] border-l-[color:var(--color-cyan-300)] font-extrabold flex-row justify-between items-start pl-[8px] pr-[8px]">
+        <header className="flex px-3 h-14 border-b border-border bg-black/60 shrink-0 overflow-x-auto gap-2 items-center">
           {/* Logo */}
-          <div className="flex items-center gap-1.5 shrink-0 mr-2">
-            <Activity className="w-4 h-4 text-primary" />
+          <div className="flex items-center gap-2 shrink-0 mr-2">
+            <Activity className="w-5 h-5 text-primary" />
             <span className="font-bold text-primary text-sm tracking-widest">ROVER-CMD</span>
           </div>
 
           {/* WS */}
-          <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
-            <Radio className="w-3 h-3" style={{ color: wsColor }} />
-            <span className="text-[10px]" style={{ color: wsColor }}>{wsStatus === "connected" ? "LIVE" : wsStatus === "connecting" ? "CONN…" : "OFFLINE"}</span>
-            {wsStatus !== "connected" && <button onClick={reconnect} className="text-[9px] text-primary underline ml-1">retry</button>}
+          <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
+            <Radio className="w-4 h-4" style={{ color: wsColor }} />
+            <span className="text-xs font-bold" style={{ color: wsColor }}>{wsStatus === "connected" ? "LIVE" : wsStatus === "connecting" ? "CONN…" : "OFFLINE"}</span>
+            {wsStatus !== "connected" && <button onClick={reconnect} className="text-xs text-primary underline ml-1">retry</button>}
           </div>
 
           {/* Battery */}
-          <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
-            <Battery className="w-3 h-3 text-secondary" />
-            <span className="text-[10px] text-secondary font-bold">{rover?.batteryLevel ?? 0}%</span>
+          <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
+            <Battery className="w-4 h-4 text-secondary" />
+            <span className="text-xs text-secondary font-bold">{rover?.batteryLevel ?? 0}%</span>
           </div>
 
           {/* Speed */}
-          <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
-            <Wind className="w-3 h-3 text-primary" />
-            <span className="text-[10px] text-primary">{(rover?.speed ?? 0).toFixed(1)} m/s</span>
+          <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
+            <Wind className="w-4 h-4 text-primary" />
+            <span className="text-xs text-primary font-bold">{(rover?.speed ?? 0).toFixed(1)} m/s</span>
           </div>
 
           {/* Temp */}
-          <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
-            <Thermometer className="w-3 h-3 text-red-400" />
-            <span className="text-[10px] text-red-400">{rover?.motorTemperature ?? 0}°C</span>
+          <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
+            <Thermometer className="w-4 h-4 text-red-400" />
+            <span className="text-xs text-red-400 font-bold">{rover?.motorTemperature ?? 0}°C</span>
           </div>
 
           {/* Direction */}
-          <Badge variant="outline" className="text-[10px] px-2 py-0 h-6 border-primary/50 text-primary uppercase shrink-0">
+          <Badge variant="outline" className="text-xs px-3 py-1.5 h-10 border-primary/50 text-primary uppercase shrink-0">
             {rover?.direction ?? "idle"}
           </Badge>
 
           {/* BLE */}
-          <div className="flex items-center gap-1 px-2 py-0.5 border border-border rounded shrink-0">
+          <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
             {btStatus === "connected" ? (
-              <button onClick={btDisconnect} className="flex items-center gap-1 text-blue-400">
-                <Bluetooth className="w-3 h-3" />
-                <span className="text-[10px]">{btDevice?.name?.slice(0, 10) ?? "BLE"}</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <button onClick={btDisconnect} className="flex items-center gap-1.5 text-blue-400">
+                <Bluetooth className="w-4 h-4" />
+                <span className="text-xs">{btDevice?.name?.slice(0, 10) ?? "BLE"}</span>
+                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
               </button>
             ) : btStatus === "connecting" ? (
-              <span className="flex items-center gap-1 text-[10px] text-yellow-400"><Bluetooth className="w-3 h-3 animate-pulse" />PAIRING</span>
+              <span className="flex items-center gap-1.5 text-xs text-yellow-400"><Bluetooth className="w-4 h-4 animate-pulse" />PAIRING</span>
             ) : isAvailable ? (
-              <button onClick={btConnect} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-blue-400">
-                <BluetoothOff className="w-3 h-3" />BLE
+              <button onClick={btConnect} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-blue-400">
+                <BluetoothOff className="w-4 h-4" />BLE
               </button>
             ) : (
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground/40"><BluetoothOff className="w-3 h-3" />NO BLE</span>
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground/40"><BluetoothOff className="w-4 h-4" />NO BLE</span>
             )}
           </div>
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
             {/* Proximity alarm badge */}
             {alarming && (
-              <span className={`flex items-center gap-1.5 text-[10px] font-bold border rounded px-2 py-0.5 shrink-0
+              <span className={`flex items-center gap-1.5 text-xs font-bold border rounded px-3 py-2 shrink-0
                 ${alarmLevel === "critical"
                   ? "text-red-300 border-red-500 bg-red-500/20 animate-pulse"
                   : "text-orange-300 border-orange-500/70 bg-orange-500/10 animate-pulse"
                 }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${alarmLevel === "critical" ? "bg-red-400" : "bg-orange-400"}`} />
+                <span className={`w-2 h-2 rounded-full ${alarmLevel === "critical" ? "bg-red-400" : "bg-orange-400"}`} />
                 ⚠ OBSTACLE {closestMm != null ? `${Math.round(closestMm)}mm` : ""}
               </span>
             )}
 
             {/* Recording indicator */}
             {recording && (
-              <span className="flex items-center gap-1 text-[10px] text-red-400 animate-pulse border border-red-500/40 rounded px-2 py-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> REC {fmtDur(mapDur)}
+              <span className="flex items-center gap-1.5 text-xs text-red-400 animate-pulse border border-red-500/40 rounded px-3 py-2">
+                <span className="w-2 h-2 rounded-full bg-red-500" /> REC {fmtDur(mapDur)}
               </span>
             )}
 
             {/* Autonomous panel button */}
             <button
               onClick={() => setShowAutoPanel(true)}
-              className={`flex items-center gap-1.5 px-2 py-0.5 border rounded text-[10px] font-bold transition-colors shrink-0 ${
+              className={`flex items-center gap-2 px-3 py-2 border rounded text-xs font-bold transition-colors shrink-0 min-h-[40px] ${
                 autoData?.enabled
                   ? "border-primary/70 text-primary bg-primary/10"
                   : "border-border text-muted-foreground hover:text-primary hover:border-primary/50"
               }`}
             >
-              <Navigation className="w-3 h-3" />
+              <Navigation className="w-4 h-4" />
               AUTO {autoData?.enabled ? `● ${(autoData.mode ?? "").toUpperCase()}` : "OFF"}
             </button>
 
@@ -442,22 +442,21 @@ export default function Dashboard() {
             <div className="relative shrink-0">
               <button
                 onClick={() => setShowRoleSwitcher((v) => !v)}
-                className="flex items-center gap-1.5 px-2 py-0.5 border rounded hover:border-primary/50 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 border rounded hover:border-primary/50 transition-colors min-h-[40px]"
                 style={{ borderColor: `${currentMeta.color}40` }}
                 title="Switch operator role"
               >
-                <Shield className="w-3 h-3" style={{ color: currentMeta.color }} />
-                <span className="text-[10px] font-bold" style={{ color: currentMeta.color }}>{currentMeta.label}</span>
-                <ChevronDown className="w-2.5 h-2.5 ml-0.5 text-muted-foreground/60" />
+                <Shield className="w-4 h-4" style={{ color: currentMeta.color }} />
+                <span className="text-xs font-bold" style={{ color: currentMeta.color }}>{currentMeta.label}</span>
+                <ChevronDown className="w-3 h-3 ml-0.5 text-muted-foreground/60" />
               </button>
 
               {showRoleSwitcher && (
                 <>
-                  {/* Backdrop to close */}
                   <div className="fixed inset-0 z-40" onClick={() => setShowRoleSwitcher(false)} />
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-black/95 border border-border rounded-lg shadow-2xl overflow-hidden min-w-52 font-mono backdrop-blur-md">
-                    <div className="px-3 py-2 border-b border-border">
-                      <span className="text-[9px] text-muted-foreground/60 tracking-widest uppercase">Switch Role</span>
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-black/95 border border-border rounded-lg shadow-2xl overflow-hidden min-w-56 font-mono backdrop-blur-md">
+                    <div className="px-4 py-3 border-b border-border">
+                      <span className="text-xs text-muted-foreground/60 tracking-widest uppercase">Switch Role</span>
                     </div>
                     {([
                       { role: "pilot" as const,    label: "PILOT",     color: "#00e676", desc: "Full command authority",    icon: "🛡" },
@@ -468,20 +467,20 @@ export default function Dashboard() {
                       return (
                         <button key={r.role}
                           onClick={() => { assignRole(r.role, operator?.name ?? ""); setShowRoleSwitcher(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
+                          className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 transition-colors text-left min-h-[56px]"
                           style={{ background: active ? `${r.color}0d` : undefined }}
                         >
-                          <span className="text-base leading-none">{r.icon}</span>
+                          <span className="text-xl leading-none">{r.icon}</span>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] font-bold tracking-wide" style={{ color: r.color }}>{r.label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold tracking-wide" style={{ color: r.color }}>{r.label}</span>
                               {active && (
-                                <span className="text-[8px] px-1 py-0 border rounded" style={{ borderColor: `${r.color}50`, color: r.color }}>ACTIVE</span>
+                                <span className="text-[10px] px-1.5 py-0.5 border rounded" style={{ borderColor: `${r.color}50`, color: r.color }}>ACTIVE</span>
                               )}
                             </div>
-                            <div className="text-[9px] text-muted-foreground/60 mt-0.5">{r.desc}</div>
+                            <div className="text-xs text-muted-foreground/60 mt-0.5">{r.desc}</div>
                           </div>
-                          {active && <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: r.color }} />}
+                          {active && <div className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />}
                         </button>
                       );
                     })}
@@ -490,27 +489,26 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Nav links */}
             {/* Feature panel buttons */}
             <button onClick={() => setShowArtifacts(true)}
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-cyan-500/40 text-cyan-400 rounded hover:bg-cyan-500/10 shrink-0 transition-colors">
-              <Scan className="w-3 h-3" /> AI
+              className="flex items-center gap-1.5 text-xs px-3 py-2 border border-cyan-500/40 text-cyan-400 rounded hover:bg-cyan-500/10 shrink-0 transition-colors min-h-[40px]">
+              <Scan className="w-4 h-4" /> AI
             </button>
             <button onClick={() => setShowGps(true)}
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 shrink-0 transition-colors">
-              <MapPin className="w-3 h-3" /> GPS
+              className="flex items-center gap-1.5 text-xs px-3 py-2 border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 shrink-0 transition-colors min-h-[40px]">
+              <MapPin className="w-4 h-4" /> GPS
             </button>
             <button onClick={() => setShowMission(true)}
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-purple-500/40 text-purple-400 rounded hover:bg-purple-500/10 shrink-0 transition-colors">
-              <Film className="w-3 h-3" /> MISSION
+              className="flex items-center gap-1.5 text-xs px-3 py-2 border border-purple-500/40 text-purple-400 rounded hover:bg-purple-500/10 shrink-0 transition-colors min-h-[40px]">
+              <Film className="w-4 h-4" /> MISSION
             </button>
             <button onClick={() => setShowVr(true)}
-              className="flex items-center gap-1 text-[10px] px-2 py-0.5 border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10 shrink-0 transition-colors">
-              <Glasses className="w-3 h-3" /> VR
+              className="flex items-center gap-1.5 text-xs px-3 py-2 border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10 shrink-0 transition-colors min-h-[40px]">
+              <Glasses className="w-4 h-4" /> VR
             </button>
 
-            <a href="/settings" className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary px-2 py-0.5 border border-border rounded">
-              <Settings className="w-3 h-3" />
+            <a href="/settings" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary px-3 py-2 border border-border rounded min-h-[40px]">
+              <Settings className="w-4 h-4" />
             </a>
           </div>
         </header>
@@ -518,8 +516,8 @@ export default function Dashboard() {
         {/* ── MAIN 3-COLUMN GRID ────────────────────────────────────────────── */}
         <div className="flex flex-1 min-h-0 divide-x divide-border">
 
-          {/* ── LEFT PANEL (280px) ─────────────────────────────────────────── */}
-          <div className="w-[280px] shrink-0 flex flex-col divide-y divide-border overflow-y-auto">
+          {/* ── LEFT PANEL (300px) ─────────────────────────────────────────── */}
+          <div className="w-[300px] shrink-0 flex flex-col divide-y divide-border overflow-y-auto">
 
             {/* Primary camera */}
             <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
@@ -533,12 +531,12 @@ export default function Dashboard() {
             ) : null)}
 
             {/* Joystick */}
-            <div className="p-3 shrink-0">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-muted-foreground uppercase">Drive Control</span>
-                <button onClick={() => handleDrive("stop")} className="text-[9px] border border-destructive/50 text-destructive hover:bg-destructive/20 px-2 py-0.5 rounded font-bold">STOP</button>
+            <div className="p-4 shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Drive Control</span>
+                <button onClick={() => handleDrive("stop")} className="text-xs border-2 border-destructive text-destructive hover:bg-destructive/20 px-4 py-2 rounded font-bold min-h-[40px] active:bg-destructive active:text-white transition-colors">⏹ STOP</button>
               </div>
-              <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} />
+              <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} size={220} />
             </div>
 
             {/* Telemetry arc gauges */}
@@ -615,41 +613,41 @@ export default function Dashboard() {
             </div>
 
             {/* Path recording quick controls */}
-            <div className="p-3 space-y-2 shrink-0">
+            <div className="p-4 space-y-3 shrink-0">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground uppercase">Path Recording</span>
-                <span className="text-[10px] font-mono text-primary">{mapDist.toFixed(1)}m / {fmtDur(mapDur)}</span>
+                <span className="text-xs text-muted-foreground uppercase font-bold">Path Recording</span>
+                <span className="text-xs font-mono text-primary">{mapDist.toFixed(1)}m / {fmtDur(mapDur)}</span>
               </div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-2">
                 <button
                   onClick={() => {
                     const next = !recording;
                     setMapRec.mutate({ data: { active: next } }, { onSuccess: (d) => { setRecording(d.recording); if (!d.recording) setLocalPath(d.path); } });
                     setRecording(next);
                   }}
-                  className={`flex-1 flex items-center justify-center gap-1 py-1 rounded border text-[10px] font-bold transition-colors ${recording ? "border-red-500 text-red-400 bg-red-500/10 animate-pulse" : "border-primary/50 text-primary hover:bg-primary/10"}`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded border text-xs font-bold transition-colors min-h-[44px] ${recording ? "border-red-500 text-red-400 bg-red-500/10 animate-pulse" : "border-primary/50 text-primary hover:bg-primary/10"}`}
                 >
-                  {recording ? <><Square className="w-2.5 h-2.5 fill-current" /> STOP</> : <><Circle className="w-2.5 h-2.5" /> REC</>}
+                  {recording ? <><Square className="w-3.5 h-3.5 fill-current" /> STOP REC</> : <><Circle className="w-3.5 h-3.5" /> RECORD</>}
                 </button>
                 <button
                   onClick={() => clearMapPath.mutate(undefined, { onSuccess: () => { setLocalPath([]); setLocalWaypoints([]); setRecording(false); setMapDist(0); setMapDur(0); } })}
-                  className="px-2 py-1 border border-border rounded text-muted-foreground text-[10px] hover:text-destructive hover:border-destructive"
+                  className="px-4 py-2.5 border border-border rounded text-muted-foreground text-xs font-bold hover:text-destructive hover:border-destructive min-h-[44px]"
                 >CLR</button>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 <Input value={wpLabel} onChange={(e) => setWpLabel(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } }); } }}
-                  placeholder="Waypoint label…" className="h-6 text-[10px] font-mono bg-background border-border px-2 flex-1" />
+                  placeholder="Waypoint label…" className="h-10 text-xs font-mono bg-background border-border px-3 flex-1" />
                 <button
                   onClick={() => addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } })}
-                  className="px-1.5 py-0.5 border border-cyan-500/40 text-cyan-400 rounded text-[10px] hover:bg-cyan-500/10"
-                ><MapPin className="w-3 h-3" /></button>
+                  className="px-3 py-2 border border-cyan-500/40 text-cyan-400 rounded text-xs hover:bg-cyan-500/10 min-h-[40px]"
+                ><MapPin className="w-4 h-4" /></button>
               </div>
               {/* Waypoint list */}
-              <div className="space-y-0.5 max-h-28 overflow-y-auto">
+              <div className="space-y-1 max-h-28 overflow-y-auto">
                 {localWaypoints.map((wp, i) => (
-                  <div key={wp.id} className="flex items-center gap-1 text-[9px]">
-                    <span className="text-cyan-400 w-3">{i + 1}</span>
+                  <div key={wp.id} className="flex items-center gap-2 text-xs py-1">
+                    <span className="text-cyan-400 w-4 font-bold">{i + 1}</span>
                     <span className="flex-1 truncate text-foreground">{wp.label}</span>
                     <span className="text-muted-foreground font-mono">{wp.x.toFixed(1)},{wp.y.toFixed(1)}</span>
                   </div>
@@ -661,44 +659,41 @@ export default function Dashboard() {
           {/* ── CENTER PANEL (flex-1) ──────────────────────────────────────── */}
           <div className="flex-1 flex flex-col min-w-0">
             {/* Center tab bar */}
-            <div className="flex gap-2 px-3 h-9 border-b border-border shrink-0 font-medium justify-between items-center flex-row bg-[color:var(--button-outline)] border-t-[color:var(--neon-green)] border-r-[color:var(--neon-green)] border-b-[color:var(--neon-green)] border-l-[color:var(--neon-green)]">
+            <div className="flex gap-2 px-3 h-12 border-b border-border shrink-0 font-medium justify-between items-center flex-row">
               <button onClick={() => setCenterView("map")}
-                className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
-                <Map className="w-3 h-3" /> MAP
+                className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
+                <Map className="w-4 h-4" /> MAP
               </button>
               <button onClick={() => setCenterView("lidar")}
-                className={`flex items-center gap-1 px-3 py-1 rounded text-[11px] font-bold transition-colors ${alarming
+                className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${alarming
                   ? alarmLevel === "critical" ? "bg-red-500/20 text-red-400 border border-red-500/70" : "bg-orange-500/10 text-orange-400 border border-orange-500/50"
                   : centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
-                <Target className="w-3 h-3" /> LIDAR {alarming && <span className="animate-pulse">⚠</span>}
+                <Target className="w-4 h-4" /> LIDAR {alarming && <span className="animate-pulse">⚠</span>}
               </button>
               {centerView === "lidar" && (
                 <div className="ml-auto flex items-center gap-2">
-                  {/* Alarm on/off */}
                   <button
                     onClick={() => setAlarmEnabled((e) => !e)}
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold transition-colors ${alarmEnabled ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-border text-muted-foreground"}`}
+                    className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-bold transition-colors min-h-[40px] ${alarmEnabled ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-border text-muted-foreground"}`}
                   >
                     ⚠ ALARM
                   </button>
-                  {/* Threshold control */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] text-muted-foreground font-mono">DIST</span>
-                    <button onClick={() => setAlarmThreshold((t) => Math.max(100, t - 100))} className="w-4 h-4 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-[10px]">−</button>
-                    <span className="text-[10px] font-mono text-primary w-12 text-center">{alarmThreshold}mm</span>
-                    <button onClick={() => setAlarmThreshold((t) => Math.min(3000, t + 100))} className="w-4 h-4 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-[10px]">+</button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-mono">DIST</span>
+                    <button onClick={() => setAlarmThreshold((t) => Math.max(100, t - 100))} className="w-10 h-10 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-lg font-bold">−</button>
+                    <span className="text-xs font-mono text-primary w-16 text-center">{alarmThreshold}mm</span>
+                    <button onClick={() => setAlarmThreshold((t) => Math.min(3000, t + 100))} className="w-10 h-10 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-lg font-bold">+</button>
                   </div>
                 </div>
               )}
               {centerView === "map" && (
-                <div className="ml-auto flex items-center gap-1">
-                  <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-1 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground"><ZoomIn className="w-3 h-3" /></button>
-                  <button onClick={() => setMapScale((s) => Math.max(5, s * 0.8))} className="p-1 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground"><ZoomOut className="w-3 h-3" /></button>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomIn className="w-4 h-4" /></button>
+                  <button onClick={() => setMapScale((s) => Math.max(5, s * 0.8))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomOut className="w-4 h-4" /></button>
                   <button onClick={() => { setFollowRover(true); setMapPan({ x: 0, y: 0 }); }}
-                    className={`p-1 border rounded ${followRover ? "border-primary text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary"}`}><Navigation className="w-3 h-3" /></button>
-                  <button onClick={() => { setMapPan({ x: 0, y: 0 }); setFollowRover(false); }} className="p-1 border border-border rounded hover:border-primary text-muted-foreground"><RotateCcw className="w-3 h-3" /></button>
-                  <span className="text-[10px] text-muted-foreground font-mono ml-1">{Math.round(mapScale)}px/m</span>
-                  <span className="text-[10px] text-muted-foreground/40 ml-2">Drag·Scroll</span>
+                    className={`p-2.5 border rounded min-h-[40px] ${followRover ? "border-primary text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary"}`}><Navigation className="w-4 h-4" /></button>
+                  <button onClick={() => { setMapPan({ x: 0, y: 0 }); setFollowRover(false); }} className="p-2.5 border border-border rounded hover:border-primary text-muted-foreground min-h-[40px]"><RotateCcw className="w-4 h-4" /></button>
+                  <span className="text-xs text-muted-foreground font-mono ml-1">{Math.round(mapScale)}px/m</span>
                 </div>
               )}
             </div>
@@ -723,13 +718,13 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* ── RIGHT PANEL (260px) ────────────────────────────────────────── */}
-          <div className="w-[260px] shrink-0 flex flex-col divide-y divide-border">
+          {/* ── RIGHT PANEL (280px) ────────────────────────────────────────── */}
+          <div className="w-[280px] shrink-0 flex flex-col divide-y divide-border">
             {/* Tab bar */}
-            <div className="flex h-9 shrink-0">
+            <div className="flex h-12 shrink-0">
               {(["sensors", "arm"] as RightTab[]).map((tab) => (
                 <button key={tab} onClick={() => setRightTab(tab)}
-                  className={`flex-1 text-[11px] font-bold uppercase tracking-wider transition-colors ${rightTab === tab ? "bg-primary/15 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
+                  className={`flex-1 text-xs font-bold uppercase tracking-wider transition-colors ${rightTab === tab ? "bg-primary/15 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
                   {tab === "sensors" ? "SENSORS" : "ARM"}
                 </button>
               ))}
@@ -737,33 +732,33 @@ export default function Dashboard() {
 
             {/* Sensors tab */}
             {rightTab === "sensors" && (
-              <div className="flex-1 overflow-y-auto p-3 space-y-4 bg-[color:var(--color-red-50)]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
                 {/* Ultrasonic */}
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase border-b border-border/50 pb-1 mb-2">Ultrasonic (UR)</p>
-                  <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground uppercase border-b border-border/50 pb-1.5 mb-3 font-bold tracking-wider">Ultrasonic (UR)</p>
+                  <div className="space-y-3">
                     {sensors?.ultrasonic?.map((u) => (
                       <div key={u.id}>
-                        <div className="flex justify-between mb-0.5">
-                          <span className={`text-[10px] ${u.triggered ? "text-destructive font-bold" : "text-primary"}`}>{u.label}</span>
-                          <span className={`text-[10px] font-mono ${u.triggered ? "text-destructive font-bold animate-pulse" : ""}`}>{u.distanceCm}cm</span>
+                        <div className="flex justify-between mb-1">
+                          <span className={`text-xs font-bold ${u.triggered ? "text-destructive" : "text-primary"}`}>{u.label}</span>
+                          <span className={`text-xs font-mono font-bold ${u.triggered ? "text-destructive animate-pulse" : ""}`}>{u.distanceCm}cm</span>
                         </div>
                         <Progress value={Math.min((u.distanceCm / 400) * 100, 100)}
-                          className={`h-1 ${u.triggered ? "bg-destructive/20 [&>div]:bg-destructive" : "bg-muted"}`} />
+                          className={`h-2 ${u.triggered ? "bg-destructive/20 [&>div]:bg-destructive" : "bg-muted"}`} />
                       </div>
-                    )) ?? <p className="text-[10px] text-muted-foreground/40">No data</p>}
+                    )) ?? <p className="text-xs text-muted-foreground/40">No data</p>}
                   </div>
                 </div>
 
                 {/* IR */}
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase border-b border-border/50 pb-1 mb-2">Infrared (IR)</p>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <p className="text-xs text-muted-foreground uppercase border-b border-border/50 pb-1.5 mb-3 font-bold tracking-wider">Infrared (IR)</p>
+                  <div className="grid grid-cols-2 gap-2">
                     {sensors?.infrared?.map((ir) => (
-                      <div key={ir.id} className={`p-2 border rounded flex flex-col items-center text-center ${ir.detected ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-muted-foreground"}`}>
-                        <span className="text-[9px] font-bold uppercase">{ir.label}</span>
-                        <span className="text-[9px]">{ir.detected ? "OBSTACLE" : "CLEAR"}</span>
-                        <span className="text-[8px] opacity-50 font-mono">{ir.rawValue}</span>
+                      <div key={ir.id} className={`p-3 border rounded flex flex-col items-center text-center ${ir.detected ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-muted-foreground"}`}>
+                        <span className="text-xs font-bold uppercase">{ir.label}</span>
+                        <span className="text-xs mt-0.5">{ir.detected ? "OBSTACLE" : "CLEAR"}</span>
+                        <span className="text-[10px] opacity-50 font-mono mt-0.5">{ir.rawValue}</span>
                       </div>
                     )) ?? null}
                   </div>
@@ -771,7 +766,7 @@ export default function Dashboard() {
 
                 {/* Obstacle warning */}
                 {sensors?.ultrasonic?.some((u) => u.triggered) && (
-                  <div className="p-2 border border-destructive rounded bg-destructive/10 text-destructive text-[10px] text-center font-bold animate-pulse">
+                  <div className="p-3 border border-destructive rounded bg-destructive/10 text-destructive text-sm text-center font-bold animate-pulse">
                     ⚠ OBSTACLE DETECTED
                   </div>
                 )}
