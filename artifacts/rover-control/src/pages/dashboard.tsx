@@ -24,7 +24,7 @@ import {
   Battery, Thermometer, Wind, Bluetooth, BluetoothOff, Radio, Target,
   Circle, Square, MapPin, ZoomIn, ZoomOut, Navigation, RotateCcw,
   Grab, Home, WifiOff, Activity, Crosshair, Settings, Map, Shield, Eye,
-  Scan, Glasses, Film, ChevronDown,
+  Scan, Glasses, Film, ChevronDown, Video,
 } from "lucide-react";
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
@@ -521,12 +521,48 @@ export default function Dashboard() {
 
             {/* Primary camera — size depends on role */}
             {operator?.role === "observer" ? (
-              /* Observer: camera fills the entire left panel */
-              <div className="flex-1 flex flex-col min-h-0">
-                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} grow />
+              /* Observer: left panel shows telemetry — camera is in center panel */
+              <div className="flex flex-col divide-y divide-border">
+                {/* Telemetry arc gauges */}
+                <div className="p-3 shrink-0">
+                  <span className="text-[10px] text-muted-foreground uppercase block mb-2">Telemetry</span>
+                  <div className="flex items-center justify-around">
+                    <ArcGauge value={rover?.batteryLevel ?? 0} label="Battery" unit="%" size={82} strokeWidth={7}
+                      color={(rover?.batteryLevel ?? 0) <= 15 ? "#ff4444" : (rover?.batteryLevel ?? 0) <= 30 ? "#ffb000" : "#00e676"} />
+                    <ArcGauge value={rover?.motorTemperature ?? 0} max={100} label="Motor °C" unit="°" size={82} strokeWidth={7}
+                      color={(rover?.motorTemperature ?? 0) >= 80 ? "#ff4444" : (rover?.motorTemperature ?? 0) >= 60 ? "#ffb000" : "#00f5ff"} />
+                    <ArcGauge value={Math.min((rover?.speed ?? 0) * 10, 100)} label="Speed" unit="m/s" size={82} strokeWidth={7} color="#0080ff" />
+                  </div>
+                  <div className="mt-2 space-y-1 text-[9px] font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Direction</span>
+                      <span className="text-cyan-400 uppercase">{rover?.direction ?? "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Wheels</span>
+                      <span className="text-primary">{rover?.wheelCount ?? "—"}</span>
+                    </div>
+                    <div className={`flex items-center justify-between font-bold ${rover?.connected ? "text-green-400" : "text-red-400"}`}>
+                      <span>Link</span>
+                      <span>{rover?.connected ? "● ONLINE" : "● OFFLINE"}</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Motor status grid */}
+                <div className="p-3 shrink-0">
+                  <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wider font-mono block mb-2">Motor Status</span>
+                  <div className="grid grid-cols-4 gap-1">
+                    {["FL","FR","RL","RR"].map((wh) => (
+                      <div key={wh} className="flex flex-col items-center gap-0.5">
+                        <div className={`w-4 h-4 rounded-sm ${rover?.connected ? "bg-green-500/60" : "bg-muted/20"}`} />
+                        <span className="text-[8px] text-muted-foreground/50 font-mono">{wh}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 {/* Extra camera feeds for observer */}
-                {cameraFeeds.slice(0, 3).map((f) => f.url && f.status === "connected" ? (
-                  <div key={f.id} className="relative bg-black shrink-0" style={{ height: 120 }}>
+                {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
+                  <div key={f.id} className="relative bg-black shrink-0" style={{ height: 110 }}>
                     <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
                     <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
                   </div>
@@ -723,45 +759,53 @@ export default function Dashboard() {
 
           {/* ── CENTER PANEL (flex-1) ──────────────────────────────────────── */}
           <div className="flex-1 flex flex-col min-w-0">
-            {/* Center tab bar */}
-            <div className="flex gap-2 px-3 h-12 border-b border-border shrink-0 font-medium justify-between items-center flex-row">
-              <button onClick={() => setCenterView("map")}
-                className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
-                <Map className="w-4 h-4" /> MAP
-              </button>
-              <button onClick={() => setCenterView("lidar")}
-                className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${alarming
-                  ? alarmLevel === "critical" ? "bg-red-500/20 text-red-400 border border-red-500/70" : "bg-orange-500/10 text-orange-400 border border-orange-500/50"
-                  : centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
-                <Target className="w-4 h-4" /> LIDAR {alarming && <span className="animate-pulse">⚠</span>}
-              </button>
-              {centerView === "lidar" && (
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    onClick={() => setAlarmEnabled((e) => !e)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-bold transition-colors min-h-[40px] ${alarmEnabled ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-border text-muted-foreground"}`}
-                  >
-                    ⚠ ALARM
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground font-mono">DIST</span>
-                    <button onClick={() => setAlarmThreshold((t) => Math.max(100, t - 100))} className="w-10 h-10 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-lg font-bold">−</button>
-                    <span className="text-xs font-mono text-primary w-16 text-center">{alarmThreshold}mm</span>
-                    <button onClick={() => setAlarmThreshold((t) => Math.min(3000, t + 100))} className="w-10 h-10 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-lg font-bold">+</button>
+            {/* Center tab bar — observer sees "LIVE FEED" header instead */}
+            {operator?.role === "observer" ? (
+              <div className="flex items-center gap-3 px-4 h-12 border-b border-border shrink-0">
+                <Video className="w-4 h-4 text-primary/70" />
+                <span className="text-xs font-bold tracking-widest text-primary/80 font-mono">LIVE FEED</span>
+                <span className="ml-auto text-[9px] text-muted-foreground/50 font-mono tracking-wider">CAM 01 · READ-ONLY</span>
+              </div>
+            ) : (
+              <div className="flex gap-2 px-3 h-12 border-b border-border shrink-0 font-medium justify-between items-center flex-row">
+                <button onClick={() => setCenterView("map")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
+                  <Map className="w-4 h-4" /> MAP
+                </button>
+                <button onClick={() => setCenterView("lidar")}
+                  className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${alarming
+                    ? alarmLevel === "critical" ? "bg-red-500/20 text-red-400 border border-red-500/70" : "bg-orange-500/10 text-orange-400 border border-orange-500/50"
+                    : centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
+                  <Target className="w-4 h-4" /> LIDAR {alarming && <span className="animate-pulse">⚠</span>}
+                </button>
+                {centerView === "lidar" && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => setAlarmEnabled((e) => !e)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-bold transition-colors min-h-[40px] ${alarmEnabled ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-border text-muted-foreground"}`}
+                    >
+                      ⚠ ALARM
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-mono">DIST</span>
+                      <button onClick={() => setAlarmThreshold((t) => Math.max(100, t - 100))} className="w-10 h-10 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-lg font-bold">−</button>
+                      <span className="text-xs font-mono text-primary w-16 text-center">{alarmThreshold}mm</span>
+                      <button onClick={() => setAlarmThreshold((t) => Math.min(3000, t + 100))} className="w-10 h-10 flex items-center justify-center border border-border rounded text-muted-foreground hover:text-primary text-lg font-bold">+</button>
+                    </div>
                   </div>
-                </div>
-              )}
-              {centerView === "map" && (
-                <div className="ml-auto flex items-center gap-1.5">
-                  <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomIn className="w-4 h-4" /></button>
-                  <button onClick={() => setMapScale((s) => Math.max(5, s * 0.8))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomOut className="w-4 h-4" /></button>
-                  <button onClick={() => { setFollowRover(true); setMapPan({ x: 0, y: 0 }); }}
-                    className={`p-2.5 border rounded min-h-[40px] ${followRover ? "border-primary text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary"}`}><Navigation className="w-4 h-4" /></button>
-                  <button onClick={() => { setMapPan({ x: 0, y: 0 }); setFollowRover(false); }} className="p-2.5 border border-border rounded hover:border-primary text-muted-foreground min-h-[40px]"><RotateCcw className="w-4 h-4" /></button>
-                  <span className="text-xs text-muted-foreground font-mono ml-1">{Math.round(mapScale)}px/m</span>
-                </div>
-              )}
-            </div>
+                )}
+                {centerView === "map" && (
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomIn className="w-4 h-4" /></button>
+                    <button onClick={() => setMapScale((s) => Math.max(5, s * 0.8))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomOut className="w-4 h-4" /></button>
+                    <button onClick={() => { setFollowRover(true); setMapPan({ x: 0, y: 0 }); }}
+                      className={`p-2.5 border rounded min-h-[40px] ${followRover ? "border-primary text-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary"}`}><Navigation className="w-4 h-4" /></button>
+                    <button onClick={() => { setMapPan({ x: 0, y: 0 }); setFollowRover(false); }} className="p-2.5 border border-border rounded hover:border-primary text-muted-foreground min-h-[40px]"><RotateCcw className="w-4 h-4" /></button>
+                    <span className="text-xs text-muted-foreground font-mono ml-1">{Math.round(mapScale)}px/m</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Center view */}
             <div className={`flex-1 relative min-h-0 bg-[#060606] transition-all ${alarming ? alarmLevel === "critical" ? "ring-2 ring-inset ring-red-500/80" : "ring-2 ring-inset ring-orange-500/50" : ""}`}>
@@ -770,14 +814,20 @@ export default function Dashboard() {
                 <div className={`absolute inset-0 pointer-events-none z-10 animate-pulse
                   ${alarmLevel === "critical" ? "bg-red-500/8" : "bg-orange-500/5"}`} />
               )}
-              {/* MAP */}
+              {/* OBSERVER: full-size camera feed in center */}
+              {operator?.role === "observer" && (
+                <div className="absolute inset-0 z-10">
+                  <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} grow />
+                </div>
+              )}
+              {/* MAP — always rendered so canvas ref stays alive; hidden for observer */}
               <div ref={mapContainerRef}
-                className={`absolute inset-0 cursor-crosshair ${centerView === "map" ? "" : "hidden"}`}
+                className={`absolute inset-0 cursor-crosshair ${operator?.role === "observer" || centerView !== "map" ? "hidden" : ""}`}
                 onMouseDown={onMapMouseDown} onMouseMove={onMapMouseMove} onMouseUp={onMapMouseUp} onMouseLeave={onMapMouseUp} onWheel={onMapWheel}>
                 <canvas ref={mapCanvasRef} className="w-full h-full" />
               </div>
-              {/* LIDAR 3D */}
-              <div className={`absolute inset-0 ${centerView === "lidar" ? "" : "hidden"}`}>
+              {/* LIDAR 3D — hidden for observer */}
+              <div className={`absolute inset-0 ${operator?.role === "observer" || centerView !== "lidar" ? "hidden" : ""}`}>
                 <LidarVisualizer3D lidarData={lidarData} className="w-full h-full" />
               </div>
             </div>
