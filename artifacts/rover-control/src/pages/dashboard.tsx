@@ -34,6 +34,7 @@ import { VrMode } from "@/components/vr-mode";
 import { MissionRecorder } from "@/components/mission-recorder";
 import { GpsPanel } from "@/components/gps-panel";
 import { ArcGauge } from "@/components/arc-gauge";
+import { Joystick } from "@/components/Joystick";
 
 interface PathPoint { x: number; y: number; headingDeg: number; speed: number; timestamp: string; }
 interface Waypoint { id: string; label: string; x: number; y: number; timestamp: string; }
@@ -531,25 +532,13 @@ export default function Dashboard() {
               </div>
             ) : null)}
 
-            {/* Drive D-pad */}
-            <div className="p-3 shrink-0 font-normal bg-[color:var(--color-black)] text-justify border-t-[color:var(--color-red-400)] border-r-[color:var(--color-red-400)] border-b-[color:var(--color-red-400)] border-l-[color:var(--color-red-400)]">
+            {/* Joystick */}
+            <div className="p-3 shrink-0">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-muted-foreground uppercase">Drive Control</span>
-                <span className="text-[9px] text-muted-foreground/50">WASD / ARROWS</span>
+                <button onClick={() => handleDrive("stop")} className="text-[9px] border border-destructive/50 text-destructive hover:bg-destructive/20 px-2 py-0.5 rounded font-bold">STOP</button>
               </div>
-              <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-36 h-36 mx-auto font-bold bg-[color:var(--elevate-1)]">
-                <div />
-                <DKey active={activeKey === "up"} onDown={() => { handleDrive("forward"); setActiveKey("up"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="W" />
-                <div />
-                <DKey active={activeKey === "left"} onDown={() => { handleDrive("left"); setActiveKey("left"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="A" />
-                <button onClick={() => handleDrive("stop")} className={`rounded border text-[10px] font-bold transition-colors ${activeKey === "stop" ? "bg-destructive text-white border-destructive" : "border-destructive text-destructive hover:bg-destructive/20"}`}>
-                  STOP
-                </button>
-                <DKey active={activeKey === "right"} onDown={() => { handleDrive("right"); setActiveKey("right"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="D" />
-                <div className="bg-[color:var(--button-outline)]" />
-                <DKey active={activeKey === "down"} onDown={() => { handleDrive("backward"); setActiveKey("down"); }} onUp={() => { handleDrive("stop"); setActiveKey(null); }} label="S" />
-                <div className="bg-[color:var(--badge-outline)]" />
-              </div>
+              <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} />
             </div>
 
             {/* Telemetry arc gauges */}
