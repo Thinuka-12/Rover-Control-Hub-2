@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export type OperatorRole = "pilot" | "co-pilot" | "observer";
 
@@ -10,6 +10,8 @@ export interface OperatorState {
 }
 
 const STORAGE_KEY = "rover-operator-v1";
+const subscribers = new Set<() => void>();
+let cachedOperator: OperatorState | null | undefined;
 
 function load(): OperatorState | null {
   try {
@@ -20,6 +22,30 @@ function load(): OperatorState | null {
 
 function save(s: OperatorState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+
+function subscribe(callback: () => void) {
+  subscribers.add(callback);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY) {
+      cachedOperator = load();
+      callback();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    subscribers.delete(callback);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function getSnapshot() {
+  if (cachedOperator === undefined) cachedOperator = load();
+  return cachedOperator;
+}
+
+function notifySubscribers() {
+  subscribers.forEach((callback) => callback());
 }
 
 export interface OperatorMeta { label: string; color: string; description: string }
@@ -43,7 +69,7 @@ const ROLE_META: Record<OperatorRole, OperatorMeta> = {
 };
 
 export function useOperatorRole() {
-  const [operator, setOperator] = useState<OperatorState | null>(() => load());
+  const operator = useSyncExternalStore(subscribe, getSnapshot, () => null);
 
   const assignRole = useCallback((role: OperatorRole, name: string) => {
     const s: OperatorState = {
@@ -53,12 +79,14 @@ export function useOperatorRole() {
       assignedAt: new Date().toISOString(),
     };
     save(s);
-    setOperator(s);
+    cachedOperator = s;
+    notifySubscribers();
   }, []);
 
   const releaseRole = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    setOperator(null);
+    cachedOperator = null;
+    notifySubscribers();
   }, []);
 
   const role = operator?.role ?? "observer";
@@ -76,6 +104,10 @@ export function useOperatorRole() {
     canArm: role === "pilot",
     canConfigure: role === "pilot",
     canAutonom: role === "pilot",
+    canViewCameras: operator !== null,
+    canViewMap: operator !== null,
+    canEditMap: role === "pilot" || role === "co-pilot",
+    canManageCameras: role === "pilot" || role === "co-pilot",
     isObserver: role === "observer",
   };
 }

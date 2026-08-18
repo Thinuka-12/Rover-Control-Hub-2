@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Redirect, Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,18 +9,31 @@ import ArmControl from "@/pages/arm-control";
 import Settings from "@/pages/settings";
 import MapPage from "@/pages/map";
 import CamerasPage from "@/pages/cameras";
+import { useOperatorRole } from "@/hooks/use-operator-role";
 
 const queryClient = new QueryClient();
 
 function Router() {
+  const permissions = useOperatorRole();
+
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
-      <Route path="/classic" component={MainControl} />
-      <Route path="/arm" component={ArmControl} />
-      <Route path="/cameras" component={CamerasPage} />
-      <Route path="/map" component={MapPage} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/classic">
+        {permissions.hasRole && permissions.canDrive ? <MainControl /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/arm">
+        {permissions.hasRole && permissions.canArm ? <ArmControl /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/cameras">
+        {permissions.hasRole && permissions.canViewCameras ? <CamerasPage /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/map">
+        {permissions.hasRole && permissions.canViewMap ? <MapPage /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/settings">
+        {permissions.hasRole && permissions.canConfigure ? <Settings /> : <Redirect to="/" />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

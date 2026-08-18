@@ -7,6 +7,7 @@ import {
   useAddWaypoint,
 } from "@workspace/api-client-react";
 import { useRoverWs } from "@/hooks/use-rover-ws";
+import { useOperatorRole } from "@/hooks/use-operator-role";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +59,7 @@ function drawRover(ctx: CanvasRenderingContext2D, rx: number, ry: number, headin
 }
 
 export default function MapPage() {
+  const { canEditMap } = useOperatorRole();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -364,6 +366,7 @@ export default function MapPage() {
 
   // File load for replay
   const handleFileLoad = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEditMap) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -414,6 +417,7 @@ export default function MapPage() {
 
   // Live recording controls
   const handleToggleRecording = () => {
+    if (!canEditMap) return;
     const next = !recording;
     setRecording.mutate({ data: { active: next } }, {
       onSuccess: (data) => {
@@ -424,11 +428,13 @@ export default function MapPage() {
     setRecordingState(next);
   };
   const handleClear = () => {
+    if (!canEditMap) return;
     clearPath.mutate(undefined, {
       onSuccess: () => { setLocalPath([]); setLocalWaypoints([]); setRecordingState(false); setTotalDist(0); setDurationSec(0); },
     });
   };
   const handleAddWaypoint = () => {
+    if (!canEditMap) return;
     const label = wpLabel.trim() || `WP ${localWaypoints.length + 1}`;
     addWaypoint.mutate({ data: { label } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } });
   };
@@ -461,17 +467,21 @@ export default function MapPage() {
         <div className="flex flex-wrap items-center gap-2">
           {mode === "live" ? (
             <>
-              <Button onClick={handleToggleRecording} variant="outline"
-                className={recording ? "border-red-500 text-red-400 hover:bg-red-500/10 animate-pulse" : "border-primary/50 text-primary hover:bg-primary/10"}>
-                {recording ? <Square className="w-3 h-3 mr-2 fill-current" /> : <Circle className="w-3 h-3 mr-2" />}
-                {recording ? "STOP REC" : "START REC"}
-              </Button>
-              <Button variant="outline" onClick={handleClear} className="border-border text-muted-foreground hover:text-destructive hover:border-destructive">
-                <Trash2 className="w-3 h-3 mr-2" /> CLEAR
-              </Button>
-              <Button variant="outline" onClick={handleExport} disabled={localPath.length === 0} className="border-border text-muted-foreground hover:text-primary hover:border-primary">
-                <Download className="w-3 h-3 mr-2" /> EXPORT
-              </Button>
+              {canEditMap && (
+                <>
+                  <Button onClick={handleToggleRecording} variant="outline"
+                    className={recording ? "border-red-500 text-red-400 hover:bg-red-500/10 animate-pulse" : "border-primary/50 text-primary hover:bg-primary/10"}>
+                    {recording ? <Square className="w-3 h-3 mr-2 fill-current" /> : <Circle className="w-3 h-3 mr-2" />}
+                    {recording ? "STOP REC" : "START REC"}
+                  </Button>
+                  <Button variant="outline" onClick={handleClear} className="border-border text-muted-foreground hover:text-destructive hover:border-destructive">
+                    <Trash2 className="w-3 h-3 mr-2" /> CLEAR
+                  </Button>
+                  <Button variant="outline" onClick={handleExport} disabled={localPath.length === 0} className="border-border text-muted-foreground hover:text-primary hover:border-primary">
+                    <Download className="w-3 h-3 mr-2" /> EXPORT
+                  </Button>
+                </>
+              )}
               <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10">
                 <Film className="w-3 h-3 mr-2" /> LOAD REPLAY
               </Button>
@@ -634,14 +644,16 @@ export default function MapPage() {
                 <CardTitle className="text-xs font-bold tracking-widest flex items-center gap-2"><MapPin className="w-3 h-3 text-cyan-400" /> WAYPOINTS</CardTitle>
               </CardHeader>
               <CardContent className="p-3 space-y-3">
-                <div className="flex gap-2">
-                  <Input value={wpLabel} onChange={(e) => setWpLabel(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleAddWaypoint(); }}
-                    placeholder="Label..." className="font-mono text-xs bg-background border-border h-8" />
-                  <Button onClick={handleAddWaypoint} size="sm" variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 px-2 h-8">
-                    <MapPin className="w-3 h-3" />
-                  </Button>
-                </div>
+                {canEditMap && (
+                  <div className="flex gap-2">
+                    <Input value={wpLabel} onChange={(e) => setWpLabel(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleAddWaypoint(); }}
+                      placeholder="Label..." className="font-mono text-xs bg-background border-border h-8" />
+                    <Button onClick={handleAddWaypoint} size="sm" variant="outline" className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 px-2 h-8">
+                      <MapPin className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {localWaypoints.length === 0 && <p className="text-xs text-muted-foreground/50 text-center py-2">No waypoints yet</p>}
                   {localWaypoints.map((wp, i) => (

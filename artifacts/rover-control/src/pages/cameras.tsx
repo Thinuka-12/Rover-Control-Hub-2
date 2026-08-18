@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { useCameraFeeds, type CameraFeed, type CameraSource } from "@/hooks/use-camera-feeds";
+import { useOperatorRole } from "@/hooks/use-operator-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,9 +67,10 @@ interface CameraSlotProps {
   fullscreen: boolean;
   onToggleFullscreen: () => void;
   compact?: boolean;
+  readOnly?: boolean;
 }
 
-function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, onStopSnapshot, fullscreen, onToggleFullscreen, compact }: CameraSlotProps) {
+function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, onStopSnapshot, fullscreen, onToggleFullscreen, compact, readOnly = false }: CameraSlotProps) {
   const [showConfig, setShowConfig] = useState(feed.url === "");
   const [showPtz, setShowPtz] = useState(false);
   const [localUrl, setLocalUrl] = useState(feed.url);
@@ -148,7 +150,7 @@ function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, o
             </Badge>
           )}
           {/* PTZ toggle */}
-          {isActive && (
+          {isActive && !readOnly && (
             <button onClick={() => setShowPtz((v) => !v)}
               className={`p-0.5 rounded text-[8px] font-bold border transition-colors ${showPtz ? "border-cyan-500/50 text-cyan-400 bg-cyan-500/10" : "border-border text-muted-foreground/50 hover:text-cyan-400 hover:border-cyan-500/30"}`}
               title="PTZ Controls">
@@ -156,22 +158,26 @@ function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, o
             </button>
           )}
           {/* Recording toggle */}
-          {isActive && (
+          {isActive && !readOnly && (
             <button onClick={() => setRecording((r) => !r)}
               className={`p-0.5 rounded transition-colors ${recording ? "text-red-400" : "text-muted-foreground hover:text-red-400"}`}
               title={recording ? "Stop recording" : "Start recording timer"}>
               <span className={`w-2 h-2 rounded-full inline-block ${recording ? "bg-red-500 animate-pulse" : "bg-muted-foreground/30"}`} />
             </button>
           )}
-          <button onClick={() => setShowConfig((v) => !v)} className="p-0.5 rounded hover:bg-white/10 text-muted-foreground hover:text-foreground">
-            <Settings2 className="w-3 h-3" />
-          </button>
+          {!readOnly && (
+            <button onClick={() => setShowConfig((v) => !v)} className="p-0.5 rounded hover:bg-white/10 text-muted-foreground hover:text-foreground">
+              <Settings2 className="w-3 h-3" />
+            </button>
+          )}
           <button onClick={onToggleFullscreen} className="p-0.5 rounded hover:bg-white/10 text-muted-foreground hover:text-primary">
             {fullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
           </button>
-          <button onClick={onRemove} className="p-0.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
-            <X className="w-3 h-3" />
-          </button>
+          {!readOnly && (
+            <button onClick={onRemove} className="p-0.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -245,7 +251,7 @@ function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, o
       )}
 
       {/* Config panel */}
-      {showConfig && (
+      {showConfig && !readOnly && (
         <div className="border-b border-border bg-black/80 p-2 space-y-1.5 z-10">
           <Input value={localLabel} onChange={(e) => setLocalLabel(e.target.value)}
             placeholder="Camera label" className="font-mono text-[10px] h-6 bg-background border-border px-2" />
@@ -323,7 +329,7 @@ function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, o
           <div className="text-center p-4 space-y-2">
             <Camera className="w-8 h-8 mx-auto opacity-10" />
             <p className="text-[10px] text-muted-foreground/60 font-mono">NO SIGNAL</p>
-            {!feed.url && <p className="text-[9px] text-muted-foreground/40">Click ⚙ to configure stream</p>}
+            {!feed.url && !readOnly && <p className="text-[9px] text-muted-foreground/40">Click ⚙ to configure stream</p>}
           </div>
         )}
 
@@ -366,6 +372,7 @@ function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, o
 
 export default function CamerasPage() {
   const { feeds, addFeed, removeFeed, updateFeed, connectBle, startSnapshot, stopSnapshot } = useCameraFeeds();
+  const { canManageCameras } = useOperatorRole();
   const [gridLayout, setGridLayout] = useState<GridLayout>(feeds.length <= 1 ? 1 : feeds.length <= 2 ? 2 : feeds.length <= 4 ? 4 : 6);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -411,7 +418,7 @@ export default function CamerasPage() {
               </button>
             ))}
           </div>
-          <div className="relative">
+          {canManageCameras && <div className="relative">
             <Button variant="outline" onClick={() => setShowAddMenu((v) => !v)}
               className="border-primary/50 text-primary hover:bg-primary/10 text-xs">
               <Plus className="w-3 h-3 mr-1" /> ADD CAMERA
@@ -445,7 +452,7 @@ export default function CamerasPage() {
                 </button>
               </div>
             )}
-          </div>
+          </div>}
         </div>
       </header>
 
@@ -496,17 +503,21 @@ export default function CamerasPage() {
             <p className="text-muted-foreground font-mono text-sm">NO CAMERAS CONFIGURED</p>
             <p className="text-muted-foreground/50 text-xs mt-1">Click ADD CAMERA to connect your first feed</p>
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => handleAddFeed("wifi")} className="flex items-center gap-2 px-4 py-2 text-xs border border-cyan-500/40 text-cyan-400 rounded hover:bg-cyan-500/10">
-              <Wifi className="w-3.5 h-3.5" /> WiFi / MJPEG
-            </button>
-            <button onClick={handleAddBle} className="flex items-center gap-2 px-4 py-2 text-xs border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10">
-              <Bluetooth className="w-3.5 h-3.5" /> Bluetooth
-            </button>
-            <button onClick={() => handleAddFeed("snapshot")} className="flex items-center gap-2 px-4 py-2 text-xs border border-green-500/40 text-green-400 rounded hover:bg-green-500/10">
-              <Camera className="w-3.5 h-3.5" /> Snapshot
-            </button>
-          </div>
+          {canManageCameras ? (
+            <div className="flex gap-3">
+              <button onClick={() => handleAddFeed("wifi")} className="flex items-center gap-2 px-4 py-2 text-xs border border-cyan-500/40 text-cyan-400 rounded hover:bg-cyan-500/10">
+                <Wifi className="w-3.5 h-3.5" /> WiFi / MJPEG
+              </button>
+              <button onClick={handleAddBle} className="flex items-center gap-2 px-4 py-2 text-xs border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10">
+                <Bluetooth className="w-3.5 h-3.5" /> Bluetooth
+              </button>
+              <button onClick={() => handleAddFeed("snapshot")} className="flex items-center gap-2 px-4 py-2 text-xs border border-green-500/40 text-green-400 rounded hover:bg-green-500/10">
+                <Camera className="w-3.5 h-3.5" /> Snapshot
+              </button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-muted-foreground/60 font-mono">OBSERVER MODE — CAMERA CONTROLS DISABLED</p>
+          )}
         </div>
       ) : (
         <div className="grid gap-2 flex-1"
@@ -524,6 +535,7 @@ export default function CamerasPage() {
                 onStopSnapshot={() => stopSnapshot(feed.id)}
                 fullscreen={fullscreenId === feed.id}
                 onToggleFullscreen={() => setFullscreenId((id) => id === feed.id ? null : feed.id)}
+                readOnly={!canManageCameras}
               />
             ) : (
               <div key={`empty-${i}`}

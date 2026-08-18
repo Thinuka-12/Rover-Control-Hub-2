@@ -14,6 +14,7 @@ import {
   useGetAutonomousStatus,
 } from "@workspace/api-client-react";
 import { useLocalSettings } from "@/hooks/use-local-settings";
+import { useOperatorRole } from "@/hooks/use-operator-role";
 import { useRoverWs } from "@/hooks/use-rover-ws";
 import { useBluetooth } from "@/hooks/use-bluetooth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import { Joystick } from "@/components/Joystick";
 
 export default function MainControl() {
   const { settings, getEffectiveCameraUrl } = useLocalSettings();
+  const { canDrive, canAutonom } = useOperatorRole();
 
   // REST queries (kept active for compatibility & fallback)
   const telemetryRest = useGetTelemetry({ query: { refetchInterval: settings.refreshRate } as never });
@@ -55,6 +57,7 @@ export default function MainControl() {
   const [activeKey, setActiveKey] = useState<string | null>(null);
 
   const handleDriveCommand = (cmd: RoverCommandInputCommand | "stop") => {
+    if (!canDrive) return;
     if (cmd === "stop") {
       stopRover.mutate();
       if (btStatus === "connected") btSend("STOP");
@@ -210,7 +213,7 @@ export default function MainControl() {
           </div>
 
           {/* Bluetooth */}
-          <div className="flex items-center gap-2 px-3 py-1 border border-border rounded">
+          {canDrive && <div className="flex items-center gap-2 px-3 py-1 border border-border rounded">
             {btStatus === "connected" ? (
               <button onClick={btDisconnect} className="flex items-center gap-2 text-xs" title={`Connected: ${btDevice?.name}`}>
                 <Bluetooth className="w-3 h-3 text-blue-400" />
@@ -235,10 +238,10 @@ export default function MainControl() {
                 log
               </button>
             )}
-          </div>
+          </div>}
 
           {/* Autonomous mode */}
-          <div className="flex flex-col items-end border border-border rounded px-3 py-1">
+          {canAutonom && <div className="flex flex-col items-end border border-border rounded px-3 py-1">
             <span className="text-[10px] text-muted-foreground uppercase">Autonomous</span>
             <div className="flex items-center gap-2 mt-0.5">
               <Switch
@@ -262,7 +265,7 @@ export default function MainControl() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </div>}
         </div>
       </header>
 
@@ -339,13 +342,20 @@ export default function MainControl() {
                     size="sm"
                     className="text-[10px] h-6 px-2 border-destructive/50 text-destructive hover:bg-destructive/20"
                     onClick={() => handleDriveCommand("stop")}
+                    disabled={!canDrive}
                   >
                     STOP
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6 flex justify-center items-center">
-                <Joystick onCommand={handleDriveCommand} activeKey={activeKey} />
+                {canDrive ? (
+                  <Joystick onCommand={handleDriveCommand} activeKey={activeKey} />
+                ) : (
+                  <div className="text-center text-xs text-muted-foreground/60 border border-border rounded p-8">
+                    READ-ONLY MODE — DRIVE COMMANDS DISABLED
+                  </div>
+                )}
               </CardContent>
             </Card>
 

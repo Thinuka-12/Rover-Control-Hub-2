@@ -78,7 +78,7 @@ export default function Dashboard() {
   const { alarming, level: alarmLevel, closestMm } = useProximityAlarm(lidarData, alarmThreshold, alarmEnabled);
 
   // ── Operator role ─────────────────────────────────────────────────────────────
-  const { operator, hasRole, assignRole, canDrive, canArm, canAutonom, currentMeta } = useOperatorRole();
+  const { operator, hasRole, assignRole, canDrive, canArm, canAutonom, canConfigure, canEditMap, currentMeta } = useOperatorRole();
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showAutoPanel, setShowAutoPanel] = useState(false);
   const [showVr, setShowVr] = useState(false);
@@ -273,7 +273,7 @@ export default function Dashboard() {
     if (!canDrive) return;
     if (cmd === "stop") { stopRover.mutate(); if (btStatus === "connected") btSend("STOP"); }
     else { sendCommand.mutate({ data: { command: cmd, speed: 80, duration: null } }); if (btStatus === "connected") btSend(cmd.toUpperCase()); }
-  }, [sendCommand, stopRover, btStatus, btSend]);
+  }, [sendCommand, stopRover, btStatus, btSend, canDrive]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -387,7 +387,7 @@ export default function Dashboard() {
           </Badge>
 
           {/* BLE */}
-          <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
+          {canDrive && <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
             {btStatus === "connected" ? (
               <button onClick={btDisconnect} className="flex items-center gap-1.5 text-blue-400">
                 <Bluetooth className="w-4 h-4" />
@@ -403,7 +403,7 @@ export default function Dashboard() {
             ) : (
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground/40"><BluetoothOff className="w-4 h-4" />NO BLE</span>
             )}
-          </div>
+          </div>}
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
             {/* Proximity alarm badge */}
@@ -426,17 +426,19 @@ export default function Dashboard() {
             )}
 
             {/* Autonomous panel button */}
-            <button
-              onClick={() => setShowAutoPanel(true)}
-              className={`flex items-center gap-2 px-3 py-2 border rounded text-xs font-bold transition-colors shrink-0 min-h-[40px] ${
-                autoData?.enabled
-                  ? "border-primary/70 text-primary bg-primary/10"
-                  : "border-border text-muted-foreground hover:text-primary hover:border-primary/50"
-              }`}
-            >
-              <Navigation className="w-4 h-4" />
-              AUTO {autoData?.enabled ? `● ${(autoData.mode ?? "").toUpperCase()}` : "OFF"}
-            </button>
+            {canAutonom && (
+              <button
+                onClick={() => setShowAutoPanel(true)}
+                className={`flex items-center gap-2 px-3 py-2 border rounded text-xs font-bold transition-colors shrink-0 min-h-[40px] ${
+                  autoData?.enabled
+                    ? "border-primary/70 text-primary bg-primary/10"
+                    : "border-border text-muted-foreground hover:text-primary hover:border-primary/50"
+                }`}
+              >
+                <Navigation className="w-4 h-4" />
+                AUTO {autoData?.enabled ? `● ${(autoData.mode ?? "").toUpperCase()}` : "OFF"}
+              </button>
+            )}
 
             {/* Operator role switcher */}
             <div className="relative shrink-0">
@@ -507,9 +509,11 @@ export default function Dashboard() {
               <Glasses className="w-4 h-4" /> VR
             </button>
 
-            <a href="/settings" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary px-3 py-2 border border-border rounded min-h-[40px]">
-              <Settings className="w-4 h-4" />
-            </a>
+            {canConfigure && (
+              <a href="/settings" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary px-3 py-2 border border-border rounded min-h-[40px]">
+                <Settings className="w-4 h-4" />
+              </a>
+            )}
           </div>
         </header>
 
@@ -690,25 +694,36 @@ export default function Dashboard() {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
+                    if (!canEditMap) return;
                     const next = !recording;
                     setMapRec.mutate({ data: { active: next } }, { onSuccess: (d) => { setRecording(d.recording); if (!d.recording) setLocalPath(d.path); } });
                     setRecording(next);
                   }}
+                  disabled={!canEditMap}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded border text-xs font-bold transition-colors min-h-[44px] ${recording ? "border-red-500 text-red-400 bg-red-500/10 animate-pulse" : "border-primary/50 text-primary hover:bg-primary/10"}`}
                 >
                   {recording ? <><Square className="w-3.5 h-3.5 fill-current" /> STOP REC</> : <><Circle className="w-3.5 h-3.5" /> RECORD</>}
                 </button>
                 <button
-                  onClick={() => clearMapPath.mutate(undefined, { onSuccess: () => { setLocalPath([]); setLocalWaypoints([]); setRecording(false); setMapDist(0); setMapDur(0); } })}
+                  onClick={() => {
+                    if (!canEditMap) return;
+                    clearMapPath.mutate(undefined, { onSuccess: () => { setLocalPath([]); setLocalWaypoints([]); setRecording(false); setMapDist(0); setMapDur(0); } });
+                  }}
+                  disabled={!canEditMap}
                   className="px-4 py-2.5 border border-border rounded text-muted-foreground text-xs font-bold hover:text-destructive hover:border-destructive min-h-[44px]"
                 >CLR</button>
               </div>
               <div className="flex gap-2">
                 <Input value={wpLabel} onChange={(e) => setWpLabel(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } }); } }}
+                  disabled={!canEditMap}
+                  onKeyDown={(e) => { if (canEditMap && e.key === "Enter") { addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } }); } }}
                   placeholder="Waypoint label…" className="h-10 text-xs font-mono bg-background border-border px-3 flex-1" />
                 <button
-                  onClick={() => addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } })}
+                  onClick={() => {
+                    if (!canEditMap) return;
+                    addWaypoint.mutate({ data: { label: wpLabel || `WP${localWaypoints.length + 1}` } }, { onSuccess: (wp) => { setLocalWaypoints((p) => [...p, wp]); setWpLabel(""); } });
+                  }}
+                  disabled={!canEditMap}
                   className="px-3 py-2 border border-cyan-500/40 text-cyan-400 rounded text-xs hover:bg-cyan-500/10 min-h-[40px]"
                 ><MapPin className="w-4 h-4" /></button>
               </div>
@@ -917,7 +932,8 @@ export default function Dashboard() {
                     <span className="text-[9px] text-muted-foreground">GRIP</span>
                     <Switch
                       checked={armQuery.data?.gripping ?? false}
-                      onCheckedChange={(c) => sendArm.mutate({ data: { axes: [], grip: c } })}
+                      disabled={!canArm}
+                      onCheckedChange={(c) => { if (canArm) sendArm.mutate({ data: { axes: [], grip: c } }); }}
                       className="scale-75 origin-right"
                     />
                   </div>
@@ -929,7 +945,7 @@ export default function Dashboard() {
                   <span className={`text-[10px] font-mono ${armQuery.data?.moving ? "text-yellow-400" : "text-muted-foreground"}`}>
                     {armQuery.data?.moving ? "MOVING" : "HOLD"}
                   </span>
-                  <Button size="sm" variant="outline" onClick={() => homeArm.mutate()} className="h-6 text-[10px] border-primary/40 text-primary hover:bg-primary/10 px-2">
+                  <Button size="sm" variant="outline" disabled={!canArm} onClick={() => { if (canArm) homeArm.mutate(); }} className="h-6 text-[10px] border-primary/40 text-primary hover:bg-primary/10 px-2">
                     <Home className="w-2.5 h-2.5 mr-1" />HOME
                   </Button>
                 </div>
@@ -957,8 +973,9 @@ export default function Dashboard() {
                           }}
                           onValueCommit={(v) => {
                             armDragging.current = false;
-                            sendArm.mutate({ data: { axes: [{ id: axis.id, angleDeg: v[0] }], grip: null } });
+                            if (canArm) sendArm.mutate({ data: { axes: [{ id: axis.id, angleDeg: v[0] }], grip: null } });
                           }}
+                          disabled={!canArm}
                           className="flex-1"
                         />
                         <span className="text-[9px] text-muted-foreground w-7">{axis.maxDeg}°</span>
@@ -975,7 +992,7 @@ export default function Dashboard() {
       {/* ── Operator selector (first visit) ──────────────────────────────── */}
       {!hasRole && <OperatorSelector onConfirm={assignRole} />}
       {/* ── Autonomous control panel ──────────────────────────────────────── */}
-      {showAutoPanel && (
+      {showAutoPanel && canAutonom && (
         <AutonomousPanel
           onClose={() => setShowAutoPanel(false)}
           currentPos={currentPos}
