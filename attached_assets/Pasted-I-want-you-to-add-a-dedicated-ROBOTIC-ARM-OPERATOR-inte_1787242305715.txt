@@ -1,0 +1,397 @@
+I want you to add a dedicated ROBOTIC ARM OPERATOR interface to my existing rover web application.
+
+IMPORTANT:
+Do not redesign or remove my existing rover dashboard, AI detection system, camera system, or other pages. Add the robotic arm control as a separate page/section that can be accessed from the navigation.
+
+PROJECT CONTEXT:
+This is a remote archaeological exploration rover for the WRO Future Innovators competition.
+
+There will be 3 operators:
+
+1. DRIVER
+- Drives the rover.
+- Uses the main Fantech C50 camera.
+- Receives the original, unmodified, low-latency camera feed through a phone inserted into a VR box.
+- The driver should NOT see AI bounding boxes or AI overlays.
+
+2. AI COPILOT
+- Uses the existing Replit dashboard.
+- Receives an AI-processed version of the Fantech C50 feed.
+- Monitors artifact detection, hazard detection, GNSS position, route/map and sensor information.
+
+3. ROBOTIC ARM OPERATOR
+- Controls the robotic arm.
+- Receives a separate live video feed from the existing A9 camera.
+- Uses this new Arm Operator page to control the robotic arm.
+
+CREATE A NEW PAGE:
+"Robotic Arm Operator"
+
+The page should be designed specifically for controlling a multi-DOF robotic arm remotely.
+
+ARM CONFIGURATION:
+The planned arm will have approximately 5 DOF:
+
+1. Base rotation
+2. Shoulder
+3. Elbow
+4. Wrist movement
+5. Gripper
+
+The exact final mechanical arm may change, so make the software architecture configurable rather than hard-coding servo limits.
+
+UI LAYOUT:
+
+Create a professional dark-mode robotics control interface.
+
+LEFT / CENTER:
+Large live A9 camera feed.
+
+The camera feed should occupy most of the screen because the arm operator needs to see the gripper and object being manipulated.
+
+RIGHT:
+Arm control panel.
+
+Controls:
+
+BASE
+[ ◀ ] [ STOP ] [ ▶ ]
+
+SHOULDER
+[ ▲ ] [ STOP ] [ ▼ ]
+
+ELBOW
+[ ▲ ] [ STOP ] [ ▼ ]
+
+WRIST
+[ ◀ ] [ STOP ] [ ▶ ]
+
+GRIPPER
+[ OPEN ] [ CLOSE ]
+
+Each movement button must support HOLD-TO-MOVE behavior:
+
+- When the operator presses and holds a movement button, continuously send movement commands.
+- When the button is released, immediately send a STOP command.
+- Do not make a single click cause uncontrolled continuous movement.
+- Include touch support for tablets/phones as well as mouse support.
+
+PRECISION MODE:
+
+Add:
+
+[ NORMAL MODE ] [ PRECISION MODE ]
+
+Normal mode:
+- Faster movement.
+
+Precision mode:
+- Much slower movement for accurately positioning the gripper.
+
+Add a configurable speed value.
+
+Example:
+Normal = 100%
+Precision = 25%
+
+Make these values configurable in the UI/settings rather than hard-coded.
+
+SERVO POSITION DISPLAY:
+
+Show the current estimated position of every joint:
+
+Base:       ___°
+Shoulder:   ___°
+Elbow:      ___°
+Wrist:      ___°
+Gripper:    OPEN/CLOSED
+
+The values should update in real time when feedback is available.
+
+IMPORTANT:
+Do not pretend that actual servo feedback exists if the hardware does not provide it.
+
+If the current hardware only sends commands without position feedback, label these as:
+"Commanded Position"
+rather than falsely calling them measured positions.
+
+EMERGENCY STOP:
+
+Create a very obvious red:
+
+[ EMERGENCY STOP ]
+
+button.
+
+When pressed:
+- Immediately send a stop command for every arm joint.
+- Prevent new movement commands until the operator explicitly re-enables the arm.
+- Show:
+"ARM STOPPED"
+
+Add:
+
+[ ENABLE ARM ]
+
+to resume operation.
+
+CONNECTION STATUS:
+
+Show:
+
+ESP32: CONNECTED / DISCONNECTED
+Arm: CONNECTED / DISCONNECTED
+A9 Camera: CONNECTED / DISCONNECTED
+
+Use clear status indicators.
+
+If communication is lost:
+- Stop sending movement commands.
+- Show a warning.
+- Put the arm into a safe stopped state if possible.
+
+COMMUNICATION ARCHITECTURE:
+
+The robotic arm uses:
+
+Webpage
+↓
+Network / WebSocket
+↓
+ESP32
+↓
+PCA9685
+↓
+Servo motors
+
+The ESP32 will ultimately control the PCA9685, which controls the arm servos.
+
+Use WebSockets for real-time control rather than repeatedly polling HTTP endpoints for movement commands.
+
+IMPORTANT:
+Separate the UI from the hardware communication layer.
+
+Create a clean abstraction such as:
+
+ArmController
+ArmCommand
+ArmJoint
+ConnectionManager
+
+The frontend should send commands such as:
+
+{
+  "type": "arm_move",
+  "joint": "base",
+  "direction": 1,
+  "speed": 25
+}
+
+and:
+
+{
+  "type": "arm_stop",
+  "joint": "base"
+}
+
+and:
+
+{
+  "type": "arm_emergency_stop"
+}
+
+Do NOT directly control GPIO or PCA9685 from browser JavaScript.
+
+The ESP32/hardware layer will be implemented separately.
+
+JOINT CONFIGURATION:
+
+Create a configuration structure for:
+
+- Joint name
+- Minimum angle
+- Maximum angle
+- Normal speed
+- Precision speed
+- Direction inversion
+- Servo channel
+
+Example:
+
+Base:
+servo channel 0
+min angle 0
+max angle 180
+
+Shoulder:
+servo channel 1
+...
+
+Do not assume these values are final. Make them easy to change.
+
+SAFETY:
+
+Implement software limits.
+
+Never allow commands that exceed configured minimum/maximum joint angles.
+
+If the operator tries to move beyond a limit:
+- Do not send the command.
+- Display a small warning.
+
+Add a configurable command timeout/watchdog.
+
+If the webpage stops sending movement commands or the connection is lost, the arm should automatically stop.
+
+CAMERA:
+
+Create an A9 camera component that can accept a network video stream.
+
+Do NOT assume the A9 camera uses a particular streaming protocol unless it is configured.
+
+Create a configurable:
+
+A9 Camera URL / Stream URL
+
+field in settings.
+
+The camera component should support a normal network video stream where technically possible.
+
+If a live stream is unavailable, display:
+
+"A9 CAMERA DISCONNECTED"
+
+instead of a blank area.
+
+KEYBOARD CONTROLS:
+
+Add optional keyboard control.
+
+Suggested controls:
+
+A / D = Base left/right
+W / S = Shoulder up/down
+I / K = Elbow up/down
+J / L = Wrist left/right
+O = Gripper open
+P = Gripper close
+SHIFT = Precision mode
+SPACE = Stop current movement
+X = Emergency stop
+
+Do not trigger movement repeatedly from uncontrolled key-repeat behavior. Use proper keydown/keyup handling.
+
+Add a visible keyboard-control legend.
+
+TOUCH CONTROLS:
+
+The same buttons must work on touchscreen devices.
+
+Use pointer events rather than only mouse click events so:
+
+- Desktop mouse
+- Laptop touchpad
+- Tablet touchscreen
+
+can all work.
+
+UI DESIGN:
+
+Make it look like a professional robotics control station.
+
+Use:
+
+- Dark background
+- Large camera panel
+- Clearly separated control panel
+- Large controls that are easy to press
+- Clear status indicators
+- Minimal unnecessary animations
+- High contrast
+- Responsive layout
+
+Do NOT make it look like a generic gaming website.
+
+It should look like a real robotic exploration control station.
+
+NAVIGATION:
+
+Add:
+
+"ARM CONTROL"
+
+to the existing navigation.
+
+Do not remove any existing navigation items.
+
+The Arm Control page should be independent from the AI Copilot page.
+
+IMPORTANT SYSTEM SEPARATION:
+
+The AI Copilot receives the processed Fantech C50 feed.
+
+The Driver receives the clean Fantech C50 feed.
+
+The Arm Operator receives the A9 camera feed.
+
+Do not mix these feeds.
+
+The Arm Operator page must NOT replace or interfere with the driver's camera feed.
+
+FUTURE HARDWARE:
+
+The current hardware includes:
+
+- ESP32 NodeMCU-32S
+- PCA9685 servo driver
+- Existing SG90 servos, although these are planned to be replaced with stronger servos
+- A9 camera
+
+The new robotic arm will use stronger metal-gear servos.
+
+Therefore, make the software configurable for the final servo count and servo channels.
+
+Do not hard-code the system specifically for SG90 servos.
+
+DEVELOPMENT APPROACH:
+
+First build the complete UI and communication architecture using a simulated/mock arm.
+
+Create a "SIMULATION MODE" switch.
+
+When simulation mode is ON:
+- No real hardware commands are sent.
+- Joint positions can be simulated.
+- The UI behaves exactly as it would with the real arm.
+
+When simulation mode is OFF:
+- Use the real WebSocket/hardware communication layer.
+
+This is important because I want to test the entire interface before connecting the actual robotic arm.
+
+DELIVERABLE:
+
+Implement the Arm Operator page inside my existing application.
+
+Before changing existing files, inspect the current project architecture and reuse its existing:
+
+- authentication
+- routing
+- styling
+- components
+- WebSocket/network infrastructure
+- camera components
+- dashboard layout
+
+Do not unnecessarily create duplicate systems.
+
+After implementation, explain:
+1. Which files were created/modified.
+2. How the Arm Operator page works.
+3. How the ESP32 will communicate with it.
+4. How to run Simulation Mode.
+5. Where I can later configure servo channels and limits.
+6. Where I can enter the A9 camera stream URL.
+7. How the Emergency Stop and watchdog work.
+
+Do not claim the physical arm is connected until actual hardware communication has been implemented and tested.
