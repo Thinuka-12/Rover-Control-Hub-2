@@ -17,6 +17,22 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Verify the password for a protected operator mode
+ */
+
+
+
+export const AuthorizeOperatorModeBody = zod.object({
+  "role": zod.enum(['pilot', 'co-pilot']),
+  "password": zod.string().min(1)
+})
+
+export const AuthorizeOperatorModeResponse = zod.object({
+  "authorized": zod.boolean()
+})
+
+
+/**
  * @summary Get current rover status
  */
 export const GetRoverStatusResponse = zod.object({

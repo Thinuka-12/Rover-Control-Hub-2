@@ -5,6 +5,24 @@
  * Rover Control API
  * OpenAPI spec version: 0.1.0
  */
+export type OperatorAuthorizationInputRole = typeof OperatorAuthorizationInputRole[keyof typeof OperatorAuthorizationInputRole];
+
+
+export const OperatorAuthorizationInputRole = {
+  pilot: 'pilot',
+  'co-pilot': 'co-pilot',
+} as const;
+
+export interface OperatorAuthorizationInput {
+  role: OperatorAuthorizationInputRole;
+  /** @minLength 1 */
+  password: string;
+}
+
+export interface OperatorAuthorization {
+  authorized: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
