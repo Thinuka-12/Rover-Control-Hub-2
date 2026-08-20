@@ -31,8 +31,6 @@ import type {
   LidarScan,
   MapRecordingInput,
   MapState,
-  OperatorAuthorization,
-  OperatorAuthorizationInput,
   RoverCommandInput,
   RoverStatus,
   RthStatus,
@@ -130,77 +128,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-
-export const getAuthorizeOperatorModeUrl = () => {
-
-
-
-
-  return `/api/operator/authorize`
-}
-
-/**
- * @summary Verify the password for a protected operator mode
- */
-export const authorizeOperatorMode = async (operatorAuthorizationInput: OperatorAuthorizationInput, options?: RequestInit): Promise<OperatorAuthorization> => {
-
-  return customFetch<OperatorAuthorization>(getAuthorizeOperatorModeUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      operatorAuthorizationInput,)
-  }
-);}
-
-
-
-
-export const getAuthorizeOperatorModeMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeOperatorMode>>, TError,{data: BodyType<OperatorAuthorizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof authorizeOperatorMode>>, TError,{data: BodyType<OperatorAuthorizationInput>}, TContext> => {
-
-const mutationKey = ['authorizeOperatorMode'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeOperatorMode>>, {data: BodyType<OperatorAuthorizationInput>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  authorizeOperatorMode(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type AuthorizeOperatorModeMutationResult = NonNullable<Awaited<ReturnType<typeof authorizeOperatorMode>>>
-    export type AuthorizeOperatorModeMutationBody = BodyType<OperatorAuthorizationInput>
-    export type AuthorizeOperatorModeMutationError = ErrorType<void>
-
-    /**
- * @summary Verify the password for a protected operator mode
- */
-export const useAuthorizeOperatorMode = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeOperatorMode>>, TError,{data: BodyType<OperatorAuthorizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof authorizeOperatorMode>>,
-        TError,
-        {data: BodyType<OperatorAuthorizationInput>},
-        TContext
-      > => {
-      return useMutation(getAuthorizeOperatorModeMutationOptions(options));
-    }
 
 export const getGetRoverStatusUrl = () => {
 

@@ -8,7 +8,6 @@ import cameraRouter from "./camera";
 import telemetryRouter from "./telemetry";
 import mapRouter from "./map";
 import homeRouter from "./home";
-import operatorRouter from "./operator";
 
 const router: IRouter = Router();
 
@@ -21,6 +20,5 @@ router.use(cameraRouter);
 router.use(telemetryRouter);
 router.use(mapRouter);
 router.use(homeRouter);
-router.use(operatorRouter);
 
 export default router;

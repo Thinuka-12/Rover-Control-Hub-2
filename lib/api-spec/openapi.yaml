@@ -9,8 +9,6 @@ servers:
 tags:
   - name: health
     description: Health operations
-  - name: operator
-    description: Operator mode access
   - name: rover
     description: Rover drive controls
   - name: sensors
@@ -37,27 +35,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-
-  /operator/authorize:
-    post:
-      operationId: authorizeOperatorMode
-      tags: [operator]
-      summary: Verify the password for a protected operator mode
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OperatorAuthorizationInput"
-      responses:
-        "200":
-          description: Operator mode authorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperatorAuthorization"
-        "401":
-          description: Invalid operator password
 
   /rover/status:
     get:
@@ -351,24 +328,6 @@ paths:
 
 components:
   schemas:
-    OperatorAuthorizationInput:
-      type: object
-      required: [role, password]
-      properties:
-        role:
-          type: string
-          enum: [pilot, co-pilot]
-        password:
-          type: string
-          minLength: 1
-
-    OperatorAuthorization:
-      type: object
-      required: [authorized]
-      properties:
-        authorized:
-          type: boolean
-
     HealthStatus:
       type: object
       required: [status]
