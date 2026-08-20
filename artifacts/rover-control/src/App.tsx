@@ -9,6 +9,7 @@ import ArmControl from "@/pages/arm-control";
 import Settings from "@/pages/settings";
 import MapPage from "@/pages/map";
 import CamerasPage from "@/pages/cameras";
+import RoboticArmOperator from "@/pages/robotic-arm-operator";
 import { useOperatorRole } from "@/hooks/use-operator-role";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,9 @@ function Router() {
       </Route>
       <Route path="/arm">
         {permissions.hasRole && permissions.canArm ? <ArmControl /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/arm-operator">
+        {permissions.hasRole && permissions.canArm ? <RoboticArmOperator /> : <Redirect to="/" />}
       </Route>
       <Route path="/cameras">
         {permissions.hasRole && permissions.canViewCameras ? <CamerasPage /> : <Redirect to="/" />}

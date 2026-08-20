@@ -25,6 +25,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "MAIN CONTROL", icon: Navigation },
     { href: "/arm", label: "ARM SYSTEM", icon: Crosshair, visible: hasRole && canArm },
+    { href: "/arm-operator", label: "ARM CONTROL", icon: Crosshair, visible: hasRole && canArm },
     { href: "/cameras", label: "CAMERAS", icon: Camera, visible: hasRole && canViewCameras },
     { href: "/map", label: "PATH MAP", icon: Map, visible: hasRole && canViewMap },
     { href: "/settings", label: "CONFIG", icon: Settings, visible: hasRole && canConfigure },

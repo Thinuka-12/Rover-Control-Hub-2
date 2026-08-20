@@ -7,6 +7,7 @@ export interface AppSettings {
   wifiCameraIp: string;
   wifiCameraPort: string;
   wifiCameraPath: string;
+  a9CameraUrl: string;
   cameraSource: "wifi" | "manual" | "none";
   refreshRate: number;
   ultrasonicCount: number;
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   wifiCameraIp: "192.168.1.200",
   wifiCameraPort: "80",
   wifiCameraPath: "/stream",
+  a9CameraUrl: "",
   cameraSource: "none",
   refreshRate: 500,
   ultrasonicCount: 6,

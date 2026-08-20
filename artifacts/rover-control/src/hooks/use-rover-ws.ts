@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 export type WsStatus = "connecting" | "connected" | "disconnected" | "error";
+export interface WsCommand {
+  type: string;
+  payload?: unknown;
+}
 
 export interface WsTelemetry {
   rover: {
@@ -35,6 +39,7 @@ interface UseRoverWsReturn {
   telemetry: WsTelemetry | null;
   lidar: WsLidar | null;
   reconnect: () => void;
+  sendMessage: (message: WsCommand) => boolean;
 }
 
 function buildWsUrl(): string {
@@ -49,6 +54,12 @@ export function useRoverWs(): UseRoverWsReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+
+  const sendMessage = useCallback((message: WsCommand) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return false;
+    wsRef.current.send(JSON.stringify(message));
+    return true;
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current) {
@@ -115,5 +126,5 @@ export function useRoverWs(): UseRoverWsReturn {
     };
   }, [connect]);
 
-  return { status, telemetry, lidar, reconnect: connect };
+  return { status, telemetry, lidar, reconnect: connect, sendMessage };
 }

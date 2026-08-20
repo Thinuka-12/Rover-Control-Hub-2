@@ -100,6 +100,22 @@ export default function Settings() {
                   className="font-mono bg-background border-border" placeholder="http://192.168.1.200/stream" />
               </div>
             )}
+
+            <div className="space-y-2 border border-primary/20 rounded p-4 bg-primary/5">
+              <Label className="text-muted-foreground uppercase text-xs flex items-center gap-1">
+                <Camera className="w-3 h-3" /> A9 Arm Camera Stream URL
+              </Label>
+              <Input
+                data-testid="input-a9-camera-url"
+                value={local.a9CameraUrl}
+                onChange={(e) => setLocal({ ...local, a9CameraUrl: e.target.value })}
+                className="font-mono bg-background border-border"
+                placeholder="http://192.168.1.210/stream"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Used only by the dedicated Arm Operator page. Leave blank until the A9 stream is configured.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
