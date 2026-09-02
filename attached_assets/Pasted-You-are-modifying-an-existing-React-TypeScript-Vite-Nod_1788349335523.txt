@@ -1,0 +1,1381 @@
+You are modifying an existing React + TypeScript + Vite + Node.js + Express + WebSocket rover mission-control application.
+
+IMPORTANT:
+
+DO NOT rebuild the application from scratch.
+
+DO NOT remove existing features.
+
+DO NOT replace the existing UI with a simpler application.
+
+DO NOT fabricate hardware connection states.
+
+DO NOT claim physical hardware is connected merely because the backend WebSocket is connected.
+
+Preserve the existing architecture, routes, role system, UI, simulation mode, safety UI and existing APIs unless a change below explicitly requires modification.
+
+The purpose of this task is to prepare the existing software for eventual integration with the real WRO rover hardware.
+
+==================================================
+1. EXISTING APPLICATION
+==================================================
+
+Frontend:
+
+- React
+- TypeScript
+- Vite
+- Wouter
+- TanStack React Query
+- Tailwind CSS
+- Radix UI
+- Lucide React
+- Three.js
+- Canvas API
+- Web Bluetooth API
+- localStorage
+
+Frontend package:
+
+artifacts/rover-control
+
+Backend:
+
+- Node.js
+- Express
+- TypeScript
+- ws WebSocket server
+- REST API
+- Current in-memory simulation state
+
+Backend package:
+
+artifacts/api-server
+
+Existing routes include:
+
+/
+ /classic
+ /arm
+ /arm-operator
+ /cameras
+ /map
+ /settings
+ /diagnostics
+
+Existing roles:
+
+pilot
+co-pilot
+arm-operator
+
+The previous Observer role has already been conceptually replaced by Arm Operator.
+
+==================================================
+2. DO NOT CHANGE THE OPERATOR DESIGN
+==================================================
+
+Keep exactly these roles:
+
+PILOT / DRIVER
+
+Can:
+- Drive rover
+- Use keyboard controls
+- Use on-screen driving controls
+- Use clean C50 camera
+- Use VR mode
+- Use rover telemetry
+- Use autonomous modes when hardware readiness allows
+- Use rover emergency stop
+- Use Bluetooth rover controls
+
+Cannot:
+- Control robotic arm
+
+AI CO-PILOT
+
+Can:
+- View AI-processed C50 feed
+- View AI detections
+- View GNSS
+- View LIDAR
+- View ultrasonic sensors
+- View map
+- Edit waypoints
+- Record/replay missions
+- View telemetry
+
+Cannot:
+- Drive rover
+- Control arm
+- Start autonomous movement
+- Configure hardware
+- Manage cameras
+
+ARM OPERATOR
+
+Can:
+- Access /arm-operator
+- Control five arm functions
+- View A9 camera
+- Enable/disable arm
+- Emergency stop arm
+- Use precision mode
+- View arm diagnostics
+- Configure arm joint limits
+
+Cannot:
+- Drive rover
+- Start rover autonomous modes
+- Access rover map
+- Access general rover cameras
+- Change global system configuration
+
+IMPORTANT:
+
+Keep these permissions in the frontend AND prepare the backend to enforce them.
+
+==================================================
+3. CORRECT THE REAL ROVER HARDWARE CONFIGURATION
+==================================================
+
+The real rover is based on:
+
+- ESP32 NodeMCU 32S
+- 4 x 12V wheel motors
+- TB6612FNG motor driver arrangement
+- Wheel encoders
+- PCA9685 servo driver
+- 5-function robotic arm
+- GNSS receiver
+- IMU
+- LIDAR
+- Ultrasonic sensors
+- C50 main camera
+- A9 arm camera
+
+Do NOT keep the old simulated default of 6 wheels if the actual configuration is 4 wheels.
+
+Change the default real hardware configuration to:
+
+wheels = 4
+
+Keep sensor counts configurable.
+
+Do not delete support for simulation.
+
+The UI should clearly distinguish:
+
+SIMULATION
+CONFIGURED
+CONNECTED
+NOT VERIFIED
+DISCONNECTED
+ERROR
+
+==================================================
+4. CREATE A HARDWARE ABSTRACTION LAYER
+==================================================
+
+Create a clean backend hardware abstraction layer.
+
+Suggested structure:
+
+artifacts/api-server/src/hardware/
+
+Possible modules:
+
+hardware-manager.ts
+esp32-manager.ts
+motor-controller.ts
+servo-controller.ts
+encoder-manager.ts
+gnss-manager.ts
+imu-manager.ts
+lidar-manager.ts
+battery-manager.ts
+hardware-types.ts
+hardware-watchdog.ts
+
+Use appropriate names if the existing project has a better architecture.
+
+The purpose is to prevent the UI/API from directly depending on simulated hardware.
+
+Architecture:
+
+Frontend
+    ↓
+Backend REST/WebSocket
+    ↓
+Hardware Manager
+    ↓
+ESP32 communication
+    ↓
+Physical hardware
+
+Simulation should implement the same interfaces.
+
+Example conceptual interface:
+
+HardwareManager
+- connect()
+- disconnect()
+- getStatus()
+- sendDriveCommand()
+- stopRover()
+- sendArmCommand()
+- stopArm()
+- getTelemetry()
+- getSensors()
+- getNavigation()
+
+Create interfaces so simulation and physical hardware can be swapped without rewriting the UI.
+
+==================================================
+5. ESP32 CONNECTION STATE
+==================================================
+
+Implement a real hardware verification state.
+
+The backend WebSocket being connected does NOT mean the ESP32 is connected.
+
+Required states:
+
+CONNECTED
+DISCONNECTED
+NOT VERIFIED
+SIMULATION
+ERROR
+
+The ESP32 should periodically send a heartbeat/telemetry message.
+
+The backend should only mark:
+
+ESP32 = CONNECTED
+
+after receiving valid hardware telemetry.
+
+If telemetry becomes stale:
+
+mark ESP32 as DISCONNECTED or ERROR.
+
+Use configurable timeout values rather than scattering magic numbers through the code.
+
+Example:
+
+ESP32_HEARTBEAT_TIMEOUT_MS
+
+Do not falsely report connection.
+
+==================================================
+6. ESP32 HARDWARE PROTOCOL
+==================================================
+
+Create a documented protocol between backend and ESP32.
+
+Use structured messages rather than relying only on plain text.
+
+Support at minimum:
+
+heartbeat
+telemetry
+drive_command
+drive_stop
+arm_move
+arm_stop
+arm_enable
+arm_emergency_stop
+sensor_data
+encoder_data
+gnss_data
+imu_data
+lidar_data
+hardware_status
+error
+
+Every hardware message should contain:
+
+type
+timestamp
+payload
+
+The protocol must support acknowledgements for commands.
+
+Example:
+
+{
+  "type": "command_ack",
+  "payload": {
+    "command": "drive",
+    "accepted": true
+  }
+}
+
+Never interpret an acknowledgement as proof that the physical action actually occurred unless the hardware reports the resulting state.
+
+==================================================
+7. ROVER MOTOR CONTROL
+==================================================
+
+Preserve existing REST:
+
+POST /api/rover/command
+POST /api/rover/stop
+
+Preserve:
+
+forward
+backward
+left
+right
+stop
+
+Connect the backend command architecture to the future ESP32 motor layer.
+
+The motor layer must support:
+
+- PWM speed
+- Direction
+- Left/right motor mapping
+- Four physical motors
+- Motor polarity configuration
+- Left/right calibration
+- Maximum speed limit
+- Immediate stop
+
+The backend should reject commands if:
+
+- hardware is not ready
+- emergency stop is active
+- watchdog has expired
+- operator is unauthorized
+- command is invalid
+
+Simulation must still work when simulation mode is enabled.
+
+==================================================
+8. ROVER SAFETY WATCHDOG
+==================================================
+
+Add a rover hardware watchdog architecture.
+
+The ESP32 must eventually implement its own watchdog.
+
+The backend should also maintain a command/session watchdog.
+
+Required behavior:
+
+If communication with the controller is lost:
+
+STOP ROVER.
+
+If the command session becomes stale:
+
+STOP ROVER.
+
+If emergency stop is activated:
+
+STOP ROVER.
+
+If the operator loses authorization:
+
+STOP ROVER.
+
+Do not allow the browser alone to be responsible for safety.
+
+Document clearly that physical ESP32 firmware must independently enforce the final motor stop.
+
+==================================================
+9. PHYSICAL EMERGENCY STOP
+==================================================
+
+Add a hardware status model for:
+
+physicalEmergencyStop
+
+Possible states:
+
+not_verified
+released
+pressed
+error
+
+The backend must support an ESP32 message indicating physical emergency stop state.
+
+When physical emergency stop is pressed:
+
+- stop rover
+- stop arm
+- disable movement commands
+- broadcast emergency state
+- show prominent UI warning
+- require explicit re-enable
+
+Do not implement software in a way that falsely claims a physical E-stop exists before hardware is installed.
+
+The UI should say:
+
+NOT VERIFIED
+
+until physical hardware confirms the input.
+
+==================================================
+10. ARM HARDWARE INTEGRATION
+==================================================
+
+Preserve /arm-operator.
+
+Five functions:
+
+base
+shoulder
+elbow
+wrist
+gripper
+
+Default PCA9685 channels:
+
+base = 0
+shoulder = 1
+elbow = 2
+wrist = 3
+gripper = 4
+
+Keep configurable.
+
+Create a PCA9685 abstraction.
+
+Required functions:
+
+setServoAngle()
+disableServo()
+enableServos()
+stopArm()
+getServoStatus()
+
+Do not assume servo feedback exists.
+
+Continue supporting:
+
+commandedPositions
+
+and:
+
+measuredPositions
+
+When physical feedback is unavailable:
+
+measuredPositions = null
+
+and display:
+
+NO SERVO FEEDBACK / NOT VERIFIED
+
+Do not fabricate measured positions from commanded positions.
+
+==================================================
+11. ARM SAFETY
+==================================================
+
+Preserve:
+
+- Emergency stop
+- Enable
+- Joint limits
+- Precision mode
+- Hold-to-move
+- Pointer release stop
+- Keyboard stop
+- WebSocket disconnect stop
+- Watchdog
+
+The final architecture should have:
+
+Browser
+↓
+Backend
+↓
+ESP32
+↓
+PCA9685
+↓
+Servos
+
+The ESP32 must eventually enforce the physical watchdog independently.
+
+Do not rely exclusively on JavaScript.
+
+==================================================
+12. WHEEL ENCODERS
+==================================================
+
+Add the real encoder architecture.
+
+Support four wheels by default.
+
+Encoder data:
+
+{
+  wheelId,
+  counts,
+  rpm,
+  speedMps,
+  distanceM,
+  totalDistanceM,
+  status,
+  timestamp
+}
+
+Add backend storage for the latest readings.
+
+Detect:
+
+- missing encoder
+- stale encoder
+- impossible RPM
+- impossible speed
+- counter reset
+- disconnected encoder
+
+Do not display simulated encoder data as verified physical data.
+
+==================================================
+13. GNSS
+==================================================
+
+Preserve the existing GNSS data contract.
+
+Support:
+
+latitude
+longitude
+altitudeM
+speedMps
+headingDeg
+satellites
+fix
+accuracyM
+status
+timestamp
+
+Fix states:
+
+NO FIX
+2D FIX
+3D FIX
+RTK FIX
+
+Add stale-data detection.
+
+Only mark GNSS connected after valid hardware data is received.
+
+Navigation readiness should require an appropriate valid fix.
+
+Do not claim RTK unless the receiver actually reports RTK.
+
+==================================================
+14. IMU
+==================================================
+
+Add physical IMU integration architecture.
+
+Support:
+
+headingDeg
+rollDeg
+pitchDeg
+accelerationMps2
+status
+timestamp
+
+Add:
+
+- stale detection
+- calibration state
+- sensor health
+- offset configuration
+
+Do not fabricate IMU values in hardware mode.
+
+Simulation remains available.
+
+==================================================
+15. NAVIGATION FUSION
+==================================================
+
+Prepare the navigation architecture for:
+
+GNSS
++
+wheel encoders
++
+IMU
+
+↓
+
+navigation fusion
+
+↓
+
+local rover position
+
+The navigation system should expose:
+
+xM
+yM
+headingDeg
+latitude
+longitude
+accuracyM
+source
+confidence
+timestamp
+
+Sources:
+
+simulation
+gnss+encoders+imu
+unavailable
+
+Do not claim fused navigation until the required real sensors are actually available.
+
+The system should be able to fall back appropriately.
+
+==================================================
+16. LIDAR
+==================================================
+
+Preserve the existing 360-point LIDAR interface.
+
+Support:
+
+angle
+distanceMm
+quality
+timestamp
+
+Create a hardware LIDAR adapter.
+
+Detect:
+
+- stale scan
+- invalid distance
+- invalid quality
+- sensor disconnect
+- blocked/obstructed sensor if supported
+
+Replace simulated LIDAR data only when physical LIDAR is verified.
+
+Do not mix simulated and physical points without explicitly identifying them.
+
+==================================================
+17. OBSTACLE MANAGER
+==================================================
+
+Preserve the existing normalized obstacle structure:
+
+{
+  id,
+  source,
+  distanceMm,
+  directionDeg,
+  warningLevel,
+  timestamp
+}
+
+Support:
+
+lidar
+ultrasonic
+
+Future-ready for other sensors.
+
+Use this abstraction for:
+
+- dashboard warnings
+- map hazards
+- autonomous navigation
+- safety logic
+
+Clearly distinguish:
+
+REAL
+SIMULATION
+NOT VERIFIED
+
+==================================================
+18. MAP
+==================================================
+
+Extend the existing map.
+
+Display:
+
+- GNSS position
+- GNSS accuracy circle
+- encoder/IMU odometry
+- recorded path
+- planned path
+- autonomous path
+- replay path
+- home
+- AI artifact markers
+- LIDAR hazards
+- ultrasonic hazards
+- blocked regions
+- route deviations
+
+Every map object should have a source/status where appropriate.
+
+Never display simulated hazards as confirmed real hazards.
+
+==================================================
+19. CAMERA ARCHITECTURE
+==================================================
+
+IMPORTANT:
+
+Keep three conceptual feeds separate.
+
+PILOT:
+
+C50
+↓
+CLEAN FEED
+↓
+Pilot / VR
+
+AI CO-PILOT:
+
+C50
+↓
+AI PROCESSING
+↓
+AI-processed feed
+↓
+AI Co-pilot
+
+ARM OPERATOR:
+
+A9
+↓
+Arm Operator
+
+Do not allow AI overlays to appear on the Pilot clean feed.
+
+Do not expose the A9 feed to other roles unless explicitly configured later.
+
+==================================================
+20. AI PIPELINE
+==================================================
+
+Prepare the backend for:
+
+C50 frames
+↓
+AI inference
+↓
+artifact detections
+↓
+GNSS coordinates
+↓
+map coordinates
+
+Detection structure:
+
+id
+type
+confidence
+timestamp
+cameraFrame
+gnss
+mapPosition
+
+Add support for:
+
+- confidence threshold
+- model name
+- inference status
+- detection history
+- duplicate filtering
+- frame IDs
+- timestamps
+
+Until a real inference backend is connected, label AI results as:
+
+SIMULATION
+
+or:
+
+NOT VERIFIED
+
+Never claim real AI detection is running without a real inference result.
+
+==================================================
+21. CAMERA PTZ
+==================================================
+
+Keep the existing simulated PTZ behavior.
+
+Prepare an abstraction for future physical PTZ.
+
+Do not claim physical PTZ movement from CSS transforms.
+
+Use statuses:
+
+SIMULATION
+CONFIGURED
+CONNECTED
+NOT VERIFIED
+ERROR
+
+==================================================
+22. CAMERA SNAPSHOT INTERVAL FIX
+==================================================
+
+Fix the existing issue where the UI exposes:
+
+250 ms
+500 ms
+1000 ms
+2000 ms
+
+but the polling hook effectively remains around 500 ms.
+
+Make the selected interval actually control the snapshot polling behavior.
+
+Preserve the existing UI.
+
+==================================================
+23. SERVER-SIDE AUTHORIZATION
+==================================================
+
+Keep the existing browser role system.
+
+Add backend authorization architecture.
+
+The backend must eventually reject:
+
+Pilot attempting arm command
+AI Co-pilot attempting drive command
+AI Co-pilot attempting autonomous command
+Arm Operator attempting drive command
+non-Pilot attempting configuration
+
+Do not assume localStorage is secure.
+
+For now, if full authentication cannot be implemented safely without changing the application's deployment architecture, create the authorization middleware/interface and clearly document that production authentication is still required.
+
+Do not fake authentication.
+
+==================================================
+24. HARDWARE CALIBRATION
+==================================================
+
+Add a dedicated calibration section/page or appropriate settings area.
+
+Support configuration for:
+
+ROVER:
+- wheel diameter
+- wheelbase
+- encoder counts/revolution
+- motor polarity
+- left/right balance
+- maximum speed
+- turning calibration
+
+ARM:
+- servo center
+- minimum angle
+- maximum angle
+- direction inversion
+- gripper open
+- gripper close
+- normal speed
+- precision speed
+
+SENSORS:
+- IMU offset
+- LIDAR alignment
+- ultrasonic offsets
+- GNSS antenna position
+- battery calibration
+- camera orientation
+
+Do not automatically modify calibration values.
+
+Provide clear save/reset controls.
+
+==================================================
+25. COMPETITION READINESS PAGE
+==================================================
+
+Add a new:
+
+/readiness
+
+page.
+
+It should provide a checklist for:
+
+ESP32
+TB6612FNG
+PCA9685
+Motors
+Encoders
+GNSS
+IMU
+LIDAR
+Ultrasonic
+C50
+A9
+Battery
+Physical E-stop
+Rover watchdog
+Arm watchdog
+WebSocket
+Backend
+Navigation
+AI
+
+Each item should display:
+
+CONNECTED
+DISCONNECTED
+SIMULATION
+CONFIGURED
+NOT VERIFIED
+ERROR
+
+Add readiness categories:
+
+SAFETY
+DRIVE
+ARM
+NAVIGATION
+SENSORS
+CAMERAS
+AI
+COMMUNICATION
+
+Do not allow the page to claim "READY FOR COMPETITION" simply because the software is running.
+
+Competition readiness must be based on explicit checks.
+
+==================================================
+26. DIAGNOSTICS
+==================================================
+
+Extend /diagnostics.
+
+Show:
+
+ESP32 heartbeat age
+WebSocket age
+last hardware telemetry
+motor driver state
+PCA9685 state
+encoder health
+GNSS fix
+IMU health
+LIDAR freshness
+camera status
+A9 status
+battery state
+E-stop state
+watchdog state
+
+Show exact reason when a component is not ready.
+
+Example:
+
+ESP32:
+NOT VERIFIED
+Reason: No physical heartbeat received
+
+Do not use vague green "connected" indicators.
+
+==================================================
+27. SIMULATION MODE
+==================================================
+
+Preserve simulation mode.
+
+Simulation should continue to work without physical hardware.
+
+However:
+
+SIMULATION must always be explicitly labelled.
+
+Never allow:
+
+simulation telemetry
+
+to appear as:
+
+CONNECTED hardware.
+
+Create a clear global distinction between:
+
+SIMULATION MODE
+
+and:
+
+HARDWARE MODE
+
+==================================================
+28. AUTONOMOUS MODE SAFETY
+==================================================
+
+Do not enable physical autonomous movement merely because the UI exists.
+
+Before real autonomous commands are accepted, require appropriate readiness checks.
+
+At minimum conceptually require:
+
+ESP32 verified
+motor system verified
+E-stop released
+watchdog healthy
+navigation source valid
+obstacle sensors healthy
+
+For modes requiring navigation:
+
+GNSS/encoder/IMU readiness should be checked.
+
+For obstacle avoidance:
+
+LIDAR/ultrasonic readiness should be checked.
+
+If requirements are missing:
+
+reject the command and provide the exact reason.
+
+Example:
+
+AUTONOMOUS START BLOCKED
+
+Navigation not ready:
+GNSS = NO FIX
+IMU = NOT VERIFIED
+Encoders = NOT VERIFIED
+
+==================================================
+29. RETURN TO HOME
+==================================================
+
+Preserve the existing RTH APIs.
+
+Before physical RTH is allowed, validate:
+
+- valid home position
+- navigation readiness
+- motor readiness
+- obstacle sensing readiness
+- emergency stop released
+- watchdog healthy
+
+If not ready, reject RTH.
+
+==================================================
+30. MISSION RECORDER
+==================================================
+
+Preserve mission recording.
+
+Add hardware status events where useful:
+
+hardware_connected
+hardware_disconnected
+gnss_fix
+gnss_lost
+encoder_error
+imu_error
+lidar_error
+emergency_stop
+watchdog_stop
+autonomous_start
+autonomous_stop
+
+Do not remove existing mission events.
+
+==================================================
+31. PERSISTENT STORAGE
+==================================================
+
+Do not introduce a database unless necessary for this phase.
+
+Keep the current architecture working.
+
+Prepare clean interfaces for future persistent mission storage.
+
+Do not break localStorage configuration.
+
+==================================================
+32. API DOCUMENTATION
+==================================================
+
+Update the API documentation/comments to clearly describe:
+
+GET /api/healthz
+
+GET /api/rover/status
+POST /api/rover/command
+POST /api/rover/stop
+
+GET /api/sensors
+GET /api/sensors/lidar
+
+GET /api/arm/status
+POST /api/arm/command
+POST /api/arm/home
+
+GET /api/autonomous/status
+POST /api/autonomous/toggle
+
+GET /api/telemetry
+
+GET /api/map/state
+
+GET /api/rover/home
+POST /api/rover/home/set
+POST /api/rover/rth
+GET /api/rover/rth/status
+POST /api/rover/rth/abort
+
+Add hardware status endpoints if useful.
+
+==================================================
+33. TESTING
+==================================================
+
+Add or improve automated tests for:
+
+ROLE:
+- Pilot drive allowed
+- Pilot arm denied
+- Co-pilot drive denied
+- Co-pilot arm denied
+- Arm Operator arm allowed
+- Arm Operator drive denied
+- Non-Pilot configuration denied
+
+ROVER:
+- valid commands
+- invalid commands
+- emergency stop
+- watchdog stop
+- WebSocket loss
+- hardware unavailable
+
+ARM:
+- valid joint
+- invalid joint
+- invalid direction
+- speed clamping
+- limits
+- emergency stop
+- enable recovery
+- pointer release
+- WebSocket disconnect
+- watchdog timeout
+
+SENSORS:
+- stale GNSS
+- no GNSS fix
+- encoder failure
+- IMU failure
+- stale LIDAR
+- simulated vs hardware status
+
+AUTONOMOUS:
+- readiness blocking
+- emergency stop blocking
+- navigation unavailable blocking
+- sensor failure blocking
+
+==================================================
+34. IMPORTANT SAFETY RULE
+==================================================
+
+The web application is NOT the final safety authority.
+
+The physical ESP32 firmware must eventually independently enforce:
+
+- motor watchdog
+- arm watchdog
+- emergency stop
+- maximum motor speed
+- maximum servo movement
+- safe shutdown on communication loss
+
+The Replit backend should be treated as a command and monitoring layer.
+
+Do not create software that assumes the browser will always be running.
+
+==================================================
+35. DO NOT IMPLEMENT FAKE HARDWARE
+==================================================
+
+This is extremely important.
+
+Never do:
+
+if backend websocket connected:
+    hardwareStatus = "CONNECTED"
+
+Instead:
+
+if valid hardware heartbeat received:
+    hardwareStatus = "CONNECTED"
+
+Otherwise:
+
+hardwareStatus = "NOT VERIFIED"
+
+Similarly:
+
+Do not convert commanded servo angle into measured servo angle.
+
+Do not convert simulated GNSS into real GNSS.
+
+Do not convert simulated encoder data into real encoder data.
+
+Do not convert simulated LIDAR into real LIDAR.
+
+Do not convert configured camera URL into connected camera status.
+
+==================================================
+36. PRESERVE CURRENT UI
+==================================================
+
+Do not remove:
+
+- Dashboard
+- Driving controls
+- VR mode
+- AI panel
+- GNSS panel
+- LIDAR
+- Path Map
+- Mission Recorder
+- Camera page
+- Arm Operator
+- Diagnostics
+- Settings
+- Simulation mode
+- Existing API routes
+
+Only make the necessary changes and additions.
+
+==================================================
+37. IMPLEMENTATION METHOD
+==================================================
+
+Do NOT attempt a huge destructive rewrite in one operation.
+
+Work incrementally.
+
+First:
+
+1. Inspect the existing repository.
+2. Identify the current hardware/simulation architecture.
+3. Identify duplicate or conflicting hardware models.
+4. Identify the current role middleware.
+5. Identify the current WebSocket implementation.
+6. Identify current rover and arm command paths.
+7. Identify the current telemetry structures.
+
+Then implement changes in small logical stages.
+
+After each stage:
+
+- run TypeScript checks
+- run existing tests
+- fix regressions
+- preserve existing routes
+- verify simulation still works
+
+==================================================
+38. PRIORITY ORDER
+==================================================
+
+Implement in this order:
+
+PHASE 1:
+Hardware abstraction + hardware status
+
+PHASE 2:
+ESP32 heartbeat + connection verification
+
+PHASE 3:
+Rover watchdog + emergency-stop architecture
+
+PHASE 4:
+Motor controller integration interface
+
+PHASE 5:
+PCA9685 arm integration interface
+
+PHASE 6:
+Encoder architecture
+
+PHASE 7:
+GNSS architecture
+
+PHASE 8:
+IMU architecture
+
+PHASE 9:
+Navigation fusion architecture
+
+PHASE 10:
+LIDAR hardware architecture
+
+PHASE 11:
+Map hazard integration
+
+PHASE 12:
+Autonomous readiness gates
+
+PHASE 13:
+Camera pipeline separation
+
+PHASE 14:
+AI inference integration interface
+
+PHASE 15:
+Server-side authorization
+
+PHASE 16:
+Calibration interface
+
+PHASE 17:
+Competition readiness page
+
+PHASE 18:
+Automated safety tests
+
+==================================================
+39. FINAL REQUIREMENT
+==================================================
+
+When finished, provide a concise implementation report containing:
+
+1. Files created
+2. Files modified
+3. Existing features preserved
+4. New features added
+5. Hardware integrations prepared
+6. Which hardware features remain simulation-only
+7. Which features are still NOT VERIFIED
+8. Tests run
+9. Tests passed/failed
+10. Any remaining blockers before connecting the physical rover
+
+DO NOT claim the rover is physically integrated unless actual hardware communication has been verified.
+
+The application must remain usable in simulation mode after all changes.
