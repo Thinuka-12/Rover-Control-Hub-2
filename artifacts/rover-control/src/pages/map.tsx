@@ -59,7 +59,7 @@ function drawRover(ctx: CanvasRenderingContext2D, rx: number, ry: number, headin
 }
 
 export default function MapPage() {
-  const { canEditMap } = useOperatorRole();
+  const { canEditMap, canViewMap } = useOperatorRole();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -295,6 +295,21 @@ export default function MapPage() {
             ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2); ctx.fill();
           }
         }
+        // Planned/autonomous route: waypoint chain is intentionally distinct
+        // from the recorded breadcrumb path.
+        if (localWaypoints.length > 1) {
+          ctx.strokeStyle = "rgba(0,229,255,0.75)";
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([7, 5]);
+          ctx.beginPath();
+          localWaypoints.forEach((wp, index) => {
+            const x = originX + wp.x * scale, y = originY - wp.y * scale;
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
         // Live waypoints
         for (const wp of localWaypoints) {
           const wx = originX + wp.x * scale, wy = originY - wp.y * scale;
@@ -366,7 +381,7 @@ export default function MapPage() {
 
   // File load for replay
   const handleFileLoad = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!canEditMap) return;
+    if (!canViewMap) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -518,7 +533,12 @@ export default function MapPage() {
                 {replayState === "playing" ? "▶ PLAYING" : replayState === "paused" ? "⏸ PAUSED" : "⏹ STOPPED"} {replayElapsed}/{replayTotal}
               </span>
             )}
-            <span className="ml-auto text-muted-foreground/60 text-[10px]">Drag to pan · Scroll to zoom</span>
+             <div className="ml-auto flex items-center gap-3 text-[9px] font-mono">
+               <span className="flex items-center gap-1 text-amber-300"><i className="h-px w-4 bg-amber-300" /> RECORDED</span>
+               <span className="flex items-center gap-1 text-cyan-300"><i className="h-px w-4 border-t border-dashed border-cyan-300" /> PLANNED</span>
+               {mode === "replay" && <span className="flex items-center gap-1 text-purple-300"><i className="h-px w-4 bg-purple-300" /> REPLAY</span>}
+               <span className="text-muted-foreground/60 hidden sm:inline">Drag · Scroll</span>
+             </div>
           </div>
 
           {/* Replay transport bar */}
@@ -620,6 +640,8 @@ export default function MapPage() {
                   <div className="flex justify-between"><span className="text-muted-foreground text-xs">Duration</span><span className="font-mono text-xs">{formatDuration(durationSec)}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground text-xs">Path points</span><span className="font-mono text-xs">{localPath.length}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground text-xs">Waypoints</span><span className="font-mono text-xs">{localWaypoints.length}</span></div>
+                   <div className="flex justify-between"><span className="text-muted-foreground text-xs">Position source</span><span className="font-mono text-[10px] text-amber-300">SIMULATION</span></div>
+                   <div className="flex justify-between"><span className="text-muted-foreground text-xs">Encoders / IMU</span><span className="font-mono text-[10px] text-amber-300">NOT VERIFIED</span></div>
                   <div className="border-t border-border/50 pt-2 space-y-1">
                     <span className="text-muted-foreground text-[10px] uppercase">Current Position</span>
                     <div className="font-mono text-xs">

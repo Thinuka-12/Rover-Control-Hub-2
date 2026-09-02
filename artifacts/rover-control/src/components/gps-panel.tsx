@@ -147,7 +147,8 @@ export function GpsPanel({ onClose, currentPos, artifactMarkers = [] }: Props) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/40 shrink-0">
           <div className="flex items-center gap-2">
             <MapPin className="w-4 h-4 text-green-400" />
-            <span className="font-bold text-[12px] tracking-widest text-green-400">GPS NAVIGATION</span>
+             <span className="font-bold text-[12px] tracking-widest text-green-400">GNSS NAVIGATION</span>
+             <span className="text-[9px] text-amber-300 border border-amber-500/30 px-1">SIMULATION · NO FIX VERIFIED</span>
             {outsideGeofence && (
               <span className="text-[10px] text-red-400 border border-red-500/40 px-1 animate-pulse">GEOFENCE!</span>
             )}
@@ -177,7 +178,7 @@ export function GpsPanel({ onClose, currentPos, artifactMarkers = [] }: Props) {
                 <div className="text-[14px] font-bold text-green-400">{satellites}</div>
               </div>
               <div className="border border-border rounded p-2">
-                <div className="text-[9px] text-muted-foreground uppercase">Accuracy</div>
+                 <div className="text-[9px] text-muted-foreground uppercase">Sim Accuracy</div>
                 <div className="text-[14px] font-bold text-green-400">{accuracy.toFixed(1)}m</div>
               </div>
               <div className="border border-border rounded p-2">
@@ -308,7 +309,7 @@ export function GpsPanel({ onClose, currentPos, artifactMarkers = [] }: Props) {
               <Download className="w-3 h-3" /> Artifacts CSV
             </button>
           )}
-          <span className="ml-auto text-[9px] text-muted-foreground/30 font-mono">SIM GPS</span>
+          <span className="ml-auto text-[9px] text-muted-foreground/30 font-mono">GNSS SIMULATION</span>
         </div>
       </div>
     </div>

@@ -141,7 +141,7 @@ function ConnectionState({ label, state, detail }: { label: string; state: "conn
 
 export default function RoboticArmOperator() {
   const { settings, saveSettings } = useLocalSettings();
-  const { status: wsStatus, sendMessage } = useRoverWs();
+  const { status: wsStatus, armState, sendMessage } = useRoverWs();
   const [simulation, setSimulation] = useState(() => localStorage.getItem("rover-arm-simulation") !== "false");
   const [precision, setPrecision] = useState(false);
   const [keyboardEnabled, setKeyboardEnabled] = useState(true);
@@ -149,7 +149,7 @@ export default function RoboticArmOperator() {
   const [a9Url, setA9Url] = useState(settings.a9CameraUrl);
   const [cameraState, setCameraState] = useState<"disconnected" | "connected" | "error">(settings.a9CameraUrl ? "disconnected" : "error");
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
-  const controller = useArmController({ simulation, wsStatus, sendMessage });
+  const controller = useArmController({ simulation, wsStatus, armState, sendMessage });
   const {
     config,
     positions,

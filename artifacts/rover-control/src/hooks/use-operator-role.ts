@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 
-export type OperatorRole = "pilot" | "co-pilot" | "observer";
+export type OperatorRole = "pilot" | "co-pilot" | "arm-operator";
 
 export interface OperatorState {
   role: OperatorRole;
@@ -16,7 +16,18 @@ let cachedOperator: OperatorState | null | undefined;
 function load(): OperatorState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as OperatorState) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<OperatorState>;
+    // Migrate consoles that still have the retired read-only Observer role.
+    const storedRole = parsed.role as string | undefined;
+    const role = storedRole === "observer" ? "arm-operator" : storedRole;
+    if (role !== "pilot" && role !== "co-pilot" && role !== "arm-operator") return null;
+    return {
+      role,
+      name: typeof parsed.name === "string" ? parsed.name : "",
+      id: typeof parsed.id === "string" ? parsed.id : `op-${Date.now()}`,
+      assignedAt: typeof parsed.assignedAt === "string" ? parsed.assignedAt : new Date().toISOString(),
+    };
   } catch { return null; }
 }
 
@@ -54,17 +65,17 @@ const ROLE_META: Record<OperatorRole, OperatorMeta> = {
   pilot: {
     label: "PILOT",
     color: "#00e676",
-    description: "Full command authority — drive, arm, configure, autonomous",
+    description: "Drive, clean C50, VR, PTZ and autonomous",
   },
   "co-pilot": {
     label: "CO-PILOT",
     color: "#ffb000",
-    description: "Drive and sensor monitoring only — no arm or config changes",
+    description: "AI, GNSS, sensors, map and replay — no drive or arm",
   },
-  observer: {
-    label: "OBSERVER",
-    color: "#888",
-    description: "Read-only live feed — no commands permitted",
+  "arm-operator": {
+    label: "ARM OPERATOR",
+    color: "#00d9ff",
+    description: "Dedicated arm control and A9 camera",
   },
 };
 
@@ -89,7 +100,7 @@ export function useOperatorRole() {
     notifySubscribers();
   }, []);
 
-  const role = operator?.role ?? "observer";
+  const role = operator?.role ?? "arm-operator";
   const meta = ROLE_META[role];
 
   return {
@@ -100,14 +111,17 @@ export function useOperatorRole() {
     meta: ROLE_META,
     currentMeta: meta,
     // Permission gates
-    canDrive: role === "pilot" || role === "co-pilot",
-    canArm: role === "pilot",
+    canDrive: role === "pilot",
+    canArm: role === "arm-operator",
     canConfigure: role === "pilot",
     canAutonom: role === "pilot",
-    canViewCameras: operator !== null,
-    canViewMap: operator !== null,
-    canEditMap: role === "pilot" || role === "co-pilot",
-    canManageCameras: role === "pilot" || role === "co-pilot",
-    isObserver: role === "observer",
+    canViewCameras: role === "pilot" || role === "co-pilot",
+    canViewMap: role === "pilot" || role === "co-pilot",
+    canEditMap: role === "co-pilot",
+    canManageCameras: role === "pilot",
+    canUseAi: role === "co-pilot",
+    canUseGnss: role === "co-pilot",
+    canUseVr: role === "pilot",
+    isArmOperator: role === "arm-operator",
   };
 }

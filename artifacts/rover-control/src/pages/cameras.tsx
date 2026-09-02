@@ -372,7 +372,7 @@ function CameraSlot({ feed, onUpdate, onRemove, onConnectBle, onStartSnapshot, o
 
 export default function CamerasPage() {
   const { feeds, addFeed, removeFeed, updateFeed, connectBle, startSnapshot, stopSnapshot } = useCameraFeeds();
-  const { canManageCameras } = useOperatorRole();
+  const { canManageCameras, operator } = useOperatorRole();
   const [gridLayout, setGridLayout] = useState<GridLayout>(feeds.length <= 1 ? 1 : feeds.length <= 2 ? 2 : feeds.length <= 4 ? 4 : 6);
   const [fullscreenId, setFullscreenId] = useState<string | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -516,7 +516,9 @@ export default function CamerasPage() {
               </button>
             </div>
           ) : (
-            <p className="text-[10px] text-muted-foreground/60 font-mono">OBSERVER MODE — CAMERA CONTROLS DISABLED</p>
+            <p className="text-[10px] text-muted-foreground/60 font-mono">
+              {operator?.role === "co-pilot" ? "AI CO-PILOT MODE — CAMERA CONFIGURATION DISABLED" : "ARM OPERATOR MODE — CAMERA CONTROLS DISABLED"}
+            </p>
           )}
         </div>
       ) : (

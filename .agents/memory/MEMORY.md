@@ -1,0 +1,2 @@
+- [Hardware truthfulness](rover-hardware-truthfulness.md) — keep simulator, configured endpoints, and confirmed physical hardware visibly distinct.
+- [Rover build verification](rover-build-verification.md) — manual Vite builds require the artifact's PORT and BASE_PATH environment values.

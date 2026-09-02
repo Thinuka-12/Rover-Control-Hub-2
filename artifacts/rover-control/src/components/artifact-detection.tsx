@@ -85,6 +85,8 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDe
   const [detections, setDetections] = useState<Detection[]>([]);
   const [history, setHistory] = useState<Detection[]>([]);
   const [scanning, setScanning] = useState(true);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(0.55);
+  const [modelName, setModelName] = useState("SIMULATED-ARTIFACT-V1");
   const [flash, setFlash] = useState(false);
   const animRef = useRef<number>(0);
   const scanLineY = useRef(0);
@@ -152,7 +154,7 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDe
       }
 
       const now = Date.now();
-      const active = detections.filter((d) => now - d.timestamp < 6000);
+       const active = detections.filter((d) => now - d.timestamp < 6000 && d.confidence / 100 >= confidenceThreshold);
       for (const d of active) {
         const age = (now - d.timestamp) / 6000;
         const alpha = Math.max(0, 1 - age);
@@ -188,7 +190,7 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDe
     };
     animRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animRef.current);
-  }, [detections, scanning, typeInfo]);
+  }, [detections, scanning, typeInfo, confidenceThreshold]);
 
   const exportHistory = () => {
     const data = {
@@ -248,6 +250,31 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDe
           </span>
         </div>
 
+        <div className="px-3 py-2 border-b border-border bg-black/20 grid grid-cols-[auto_1fr_auto] items-center gap-2 text-[9px]">
+          <span className="text-muted-foreground/60">MODEL</span>
+          <input
+            value={modelName}
+            onChange={(event) => setModelName(event.target.value)}
+            className="min-w-0 rounded border border-border bg-black/40 px-2 py-1 text-[9px] text-cyan-300 outline-none focus:border-cyan-500/50"
+            aria-label="AI model name"
+          />
+          <span className="text-amber-300">SIMULATION</span>
+          <label className="col-span-3 flex items-center gap-2 text-muted-foreground/70">
+            <span className="w-24">CONFIDENCE ≥ {Math.round(confidenceThreshold * 100)}%</span>
+            <input
+              type="range"
+              min="0"
+              max="0.95"
+              step="0.05"
+              value={confidenceThreshold}
+              onChange={(event) => setConfidenceThreshold(Number(event.target.value))}
+              className="h-1 flex-1 accent-cyan-400"
+              aria-label="AI confidence threshold"
+            />
+            <span className="text-cyan-300">DETECTION {scanning ? "RUNNING" : "PAUSED"}</span>
+          </label>
+        </div>
+
         {/* Camera view with overlay */}
         <div className="relative shrink-0 bg-black" style={{ aspectRatio: "16/9" }}>
           {cameraUrl ? (
@@ -269,7 +296,7 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDe
             {scanning && <span className="px-1.5 py-0.5 bg-cyan-900/40 border border-cyan-500/40 text-cyan-300 text-[9px] animate-pulse">ACTIVE</span>}
           </div>
           <div className="absolute top-1.5 right-1.5 text-[9px] font-mono text-cyan-400/60 pointer-events-none">
-            {detections.filter((d) => Date.now() - d.timestamp < 6000).length} LIVE
+             {detections.filter((d) => Date.now() - d.timestamp < 6000 && d.confidence / 100 >= confidenceThreshold).length} LIVE
           </div>
           {scanning && (
             <div className="absolute inset-0 pointer-events-none border border-cyan-500/20" style={{ boxShadow: "0 0 15px rgba(0,245,255,0.15) inset" }} />
@@ -346,7 +373,7 @@ export function ArtifactDetection({ onClose, cameraUrl, currentPos, onArtifactDe
         <div className="px-3 py-2 border-t border-border bg-black/30 shrink-0 flex items-center gap-2 text-[9px] font-mono text-muted-foreground">
           <AlertCircle className="w-3 h-3 text-cyan-500/50" />
           Simulated AI · markers pushed to GPS panel
-          <span className="ml-auto text-muted-foreground/40">X:{currentPos.x.toFixed(1)} Y:{currentPos.y.toFixed(1)}</span>
+           <span className="ml-auto text-muted-foreground/40">X:{currentPos.x.toFixed(1)} Y:{currentPos.y.toFixed(1)}</span>
         </div>
       </div>
     </div>

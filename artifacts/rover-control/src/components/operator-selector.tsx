@@ -1,5 +1,5 @@
 import { type OperatorRole } from "@/hooks/use-operator-role";
-import { Shield, Eye, Cpu } from "lucide-react";
+import { Shield, Crosshair, Cpu } from "lucide-react";
 
 interface RoleConfig {
   role: OperatorRole;
@@ -18,8 +18,8 @@ const ROLES: RoleConfig[] = [
     label: "PILOT",
     color: "#00e676",
     glowColor: "rgba(0,230,118,0.15)",
-    description: "Full command authority",
-    perms: ["Drive", "Arm", "Autonomous", "Config"],
+    description: "Drive, clean C50, VR & autonomous",
+    perms: ["Drive", "Clean C50", "VR", "Autonomous"],
   },
   {
     role: "co-pilot",
@@ -27,17 +27,17 @@ const ROLES: RoleConfig[] = [
     label: "CO-PILOT",
     color: "#ffb000",
     glowColor: "rgba(255,176,0,0.15)",
-    description: "Drive & sensor monitoring",
-    perms: ["Drive", "Sensors", "Map"],
+    description: "AI navigation & sensor analysis",
+    perms: ["AI", "GNSS", "LIDAR", "Replay"],
   },
   {
-    role: "observer",
-    icon: <Eye className="w-7 h-7" />,
-    label: "OBSERVER",
-    color: "#888888",
-    glowColor: "rgba(136,136,136,0.12)",
-    description: "Read-only live feed",
-    perms: ["Camera", "Telemetry", "Map"],
+    role: "arm-operator",
+    icon: <Crosshair className="w-7 h-7" />,
+    label: "ARM OPERATOR",
+    color: "#00d9ff",
+    glowColor: "rgba(0,217,255,0.14)",
+    description: "Dedicated arm control & A9 camera",
+    perms: ["Arm", "A9 Camera", "Precision", "Arm Config"],
   },
 ];
 

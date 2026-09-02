@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { WsStatus } from "@/hooks/use-rover-ws";
+import type { WsArmState, WsStatus } from "@/hooks/use-rover-ws";
 
 export type ArmJointName = "base" | "shoulder" | "elbow" | "wrist" | "gripper";
 export type ArmDirection = -1 | 1;
@@ -55,10 +55,11 @@ interface MoveState {
 interface UseArmControllerOptions {
   simulation: boolean;
   wsStatus: WsStatus;
+  armState: WsArmState | null;
   sendMessage: (message: { type: string; payload?: unknown }) => boolean;
 }
 
-export function useArmController({ simulation, wsStatus, sendMessage }: UseArmControllerOptions) {
+export function useArmController({ simulation, wsStatus, armState, sendMessage }: UseArmControllerOptions) {
   const [config, setConfig] = useState<ArmJointConfig[]>(() => loadConfig());
   const [positions, setPositions] = useState<ArmPositions>(() => {
     const initialConfig = loadConfig();
@@ -154,13 +155,33 @@ export function useArmController({ simulation, wsStatus, sendMessage }: UseArmCo
   const enableArm = useCallback(() => {
     setArmStopped(false);
     setWarning(null);
-  }, []);
+    if (!simulation) sendMessage({ type: "arm_enable" });
+  }, [sendMessage, simulation]);
 
   useEffect(() => {
     if (!simulation && wsStatus !== "connected" && activeMoveRef.current) {
       stopCurrent("CONTROL LINK LOST — ARM STOPPED");
     }
   }, [simulation, stopCurrent, wsStatus]);
+
+  useEffect(() => {
+    if (simulation || !armState) return;
+    if (armState.emergencyStopped || !armState.enabled) {
+      stopCurrent("ARM STOPPED BY CONTROL SERVER");
+      setArmStopped(true);
+    }
+    if (armState.joints.length > 0) {
+      setPositions((current) => {
+        const next = { ...current };
+        for (const joint of armState.joints) {
+          if (joint.name in next && Number.isFinite(joint.commandedAngle)) {
+            next[joint.name as ArmJointName] = joint.commandedAngle;
+          }
+        }
+        return next;
+      });
+    }
+  }, [armState, simulation, stopCurrent]);
 
   useEffect(() => () => stopCurrent(), [stopCurrent]);
 

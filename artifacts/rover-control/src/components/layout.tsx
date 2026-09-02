@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetTelemetry } from "@workspace/api-client-react";
-import { Activity, Settings, Navigation, Crosshair, Map, Camera, Shield, Eye, Cpu, ChevronDown } from "lucide-react";
+import { Activity, Settings, Navigation, Crosshair, Map, Camera, Shield, Cpu, ChevronDown } from "lucide-react";
 import { useOperatorRole } from "@/hooks/use-operator-role";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -17,9 +17,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   const roleOptions = [
-    { role: "pilot" as const, label: "PILOT", description: "Full command authority", color: "#00e676", Icon: Shield },
-    { role: "co-pilot" as const, label: "CO-PILOT", description: "Drive & sensor monitoring", color: "#ffb000", Icon: Cpu },
-    { role: "observer" as const, label: "OBSERVER", description: "Read-only live feed", color: "#888888", Icon: Eye },
+    { role: "pilot" as const, label: "PILOT", description: "Drive, clean C50, VR & autonomous", color: "#00e676", Icon: Shield },
+    { role: "co-pilot" as const, label: "AI CO-PILOT", description: "AI, GNSS, map & replay", color: "#ffb000", Icon: Cpu },
+    { role: "arm-operator" as const, label: "ARM OPERATOR", description: "Dedicated arm control & A9 camera", color: "#00d9ff", Icon: Crosshair },
   ];
 
   const navItems = [
@@ -29,6 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/cameras", label: "CAMERAS", icon: Camera, visible: hasRole && canViewCameras },
     { href: "/map", label: "PATH MAP", icon: Map, visible: hasRole && canViewMap },
     { href: "/settings", label: "CONFIG", icon: Settings, visible: hasRole && canConfigure },
+    { href: "/diagnostics", label: "DIAGNOSTICS", icon: Activity, visible: hasRole },
   ].filter((item) => item.visible !== false);
 
   return (

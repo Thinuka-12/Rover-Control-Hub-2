@@ -34,10 +34,29 @@ export interface WsLidar {
   timestamp: string;
 }
 
+export interface WsArmState {
+  enabled: boolean;
+  emergencyStopped: boolean;
+  activeMoves: { joint: string; direction: -1 | 1; speed: number }[];
+  joints: {
+    name: string;
+    commandedAngle: number;
+    measuredAngle: number | null;
+    minAngle: number;
+    maxAngle: number;
+  }[];
+  hardware: {
+    controller: "not-verified" | "connected" | "disconnected";
+    feedback: "unavailable" | "available";
+  };
+  updatedAt: string;
+}
+
 interface UseRoverWsReturn {
   status: WsStatus;
   telemetry: WsTelemetry | null;
   lidar: WsLidar | null;
+  armState: WsArmState | null;
   reconnect: () => void;
   sendMessage: (message: WsCommand) => boolean;
 }
@@ -51,6 +70,7 @@ export function useRoverWs(): UseRoverWsReturn {
   const [status, setStatus] = useState<WsStatus>("connecting");
   const [telemetry, setTelemetry] = useState<WsTelemetry | null>(null);
   const [lidar, setLidar] = useState<WsLidar | null>(null);
+  const [armState, setArmState] = useState<WsArmState | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
@@ -89,6 +109,8 @@ export function useRoverWs(): UseRoverWsReturn {
           setTelemetry(msg.payload as WsTelemetry);
         } else if (msg.type === "lidar") {
           setLidar(msg.payload as WsLidar);
+        } else if (msg.type === "arm_state") {
+          setArmState(msg.payload as WsArmState);
         }
       } catch {
         // ignore malformed
@@ -126,5 +148,5 @@ export function useRoverWs(): UseRoverWsReturn {
     };
   }, [connect]);
 
-  return { status, telemetry, lidar, reconnect: connect, sendMessage };
+  return { status, telemetry, lidar, armState, reconnect: connect, sendMessage };
 }

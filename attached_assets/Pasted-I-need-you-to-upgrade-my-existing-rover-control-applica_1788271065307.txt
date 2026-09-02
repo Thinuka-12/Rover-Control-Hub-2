@@ -1,0 +1,1247 @@
+I need you to upgrade my existing rover control application for the final WRO international competition version.
+
+IMPORTANT:
+DO NOT rebuild the application from scratch.
+
+First inspect the entire existing project, understand the current architecture, routes, components, WebSocket system, camera system, telemetry system, map system, AI detection system, role system, and Arm Control page.
+
+Then make the changes below while preserving all existing functionality that is already working.
+
+Do not remove existing features unless explicitly requested below.
+
+==================================================
+PROJECT CONTEXT
+==================================================
+
+This is a remote archaeological exploration rover for the WRO Future Innovators competition.
+
+The rover has three human operators:
+
+1. PILOT / DRIVER
+2. AI CO-PILOT
+3. ROBOTIC ARM OPERATOR
+
+The physical rover hardware is planned to include:
+
+- ESP32 NodeMCU-32S
+- 4 × 12V wheel motors
+- 1 × TB6612FNG motor controller
+- PCA9685 servo driver
+- New stronger multi-DOF robotic arm
+- GNSS module
+- Wheel encoders
+- IMU
+- LIDAR
+- HC-SR04 ultrasonic sensors
+- Fantech C50 main camera
+- A9 camera for the robotic arm
+- Separate power systems
+
+The exact final arm servo model and some hardware parameters may still change.
+
+Therefore the software must be configurable.
+
+==================================================
+CURRENT APPLICATION
+==================================================
+
+The existing application already contains:
+
+- Pilot mode
+- Co-pilot mode
+- Observer mode
+- Mission Control dashboard
+- WebSocket connection
+- REST telemetry fallback
+- Rover driving
+- Keyboard driving
+- Main camera
+- AI detection panel
+- GPS panel
+- Mission panel
+- VR mode
+- Autonomous mode
+- LIDAR
+- Ultrasonic sensors
+- Path Map
+- Path recording
+- Waypoints
+- Replay
+- Camera management
+- Existing ARM SYSTEM page
+- Dedicated ARM CONTROL page
+- System Configuration
+- Bluetooth
+
+Preserve these systems unless specifically modified below.
+
+==================================================
+1. OPERATOR ROLE SYSTEM
+==================================================
+
+Change the application from:
+
+Pilot
+Co-pilot
+Observer
+
+to:
+
+Pilot / Driver
+AI Co-pilot
+Arm Operator
+
+Remove the Observer role.
+
+The three operators should have the following permissions.
+
+-------------------------
+PILOT / DRIVER
+-------------------------
+
+CAN:
+- Drive rover
+- Use on-screen driving controls
+- Use keyboard driving
+- Use VR mode
+- View clean C50 camera feed
+- Control main camera/PTZ
+- View telemetry
+- Emergency stop
+- Autonomous mode
+- Basic rover status
+
+CANNOT:
+- Control robotic arm
+
+The Pilot must receive the original/unmodified C50 camera feed.
+
+Do NOT display AI bounding boxes or AI annotations in the Pilot's VR feed.
+
+-------------------------
+AI CO-PILOT
+-------------------------
+
+CAN:
+- View AI-processed C50 camera feed
+- AI detection
+- Artifact detection
+- Hazard detection
+- GNSS
+- LIDAR
+- Sensors
+- Path Map
+- Waypoints
+- Path recording
+- Replay
+- Telemetry
+
+CANNOT:
+- Control robotic arm
+- Change system configuration
+- Take over driving unless an explicit future permission is added
+
+-------------------------
+ARM OPERATOR
+-------------------------
+
+CAN:
+- Dedicated Arm Control page
+- A9 camera
+- Robotic arm controls
+- Arm emergency stop
+- Arm enable
+- Joint positions
+- Precision mode
+- Arm configuration where appropriate
+
+CANNOT:
+- Drive rover
+- Control rover autonomous mode
+- Change system configuration
+
+Restricted pages must redirect if the user attempts to access them directly through the URL.
+
+==================================================
+2. CAMERA ARCHITECTURE
+==================================================
+
+There are TWO main cameras.
+
+CAMERA 1:
+Fantech C50
+
+CAMERA 2:
+A9 camera
+
+They must remain completely separate.
+
+-------------------------
+FANTECH C50
+-------------------------
+
+The C50 is the main rover camera.
+
+It has two logical outputs:
+
+A. Driver feed
+B. AI processing feed
+
+The DRIVER must receive the clean, original C50 feed.
+
+The AI CO-PILOT receives a separate processed copy.
+
+The AI processing must not introduce unnecessary latency into the driver's feed.
+
+Architecture:
+
+C50
+ |
+ +----> Clean low-latency feed ----> Pilot / VR
+ |
+ +----> AI processing -----------> AI Co-pilot
+
+Do NOT overlay AI bounding boxes onto the Pilot's clean VR feed.
+
+-------------------------
+A9 CAMERA
+-------------------------
+
+The A9 camera is ONLY for the robotic arm operator.
+
+Architecture:
+
+A9
+ |
+ +----> Arm Operator page
+
+The A9 camera must NOT replace the C50.
+
+The A9 camera URL must be configurable.
+
+Show:
+
+A9 CAMERA CONNECTED
+A9 CAMERA DISCONNECTED
+
+If the camera is unavailable, display:
+
+"A9 CAMERA DISCONNECTED"
+
+Do not falsely claim hardware is connected.
+
+==================================================
+3. GNSS SYSTEM
+==================================================
+
+Upgrade the current GPS panel into a proper GNSS panel.
+
+Display:
+
+- Latitude
+- Longitude
+- Altitude
+- Ground speed
+- Heading/course
+- Number of satellites
+- Fix status
+- Estimated position accuracy
+- GNSS connection status
+
+Fix states should support:
+
+NO FIX
+2D FIX
+3D FIX
+RTK FIX (future-ready)
+
+Do not claim RTK functionality exists unless hardware actually supports it.
+
+The GNSS position must be usable by the Path Map.
+
+The current rover position should appear on the map.
+
+Create a clean data structure for GNSS telemetry.
+
+Example:
+
+{
+  "latitude": 0,
+  "longitude": 0,
+  "altitude": 0,
+  "speed": 0,
+  "heading": 0,
+  "satellites": 0,
+  "fix": "3D",
+  "accuracy": 0
+}
+
+==================================================
+4. WHEEL ENCODERS
+==================================================
+
+Add wheel encoder support.
+
+The app should be able to receive:
+
+- Encoder counts
+- Wheel RPM
+- Wheel speed
+- Distance travelled
+- Odometry
+- Encoder status
+
+Make the architecture support multiple wheels.
+
+Do not hard-code assumptions that cannot be changed.
+
+Display encoder information on the telemetry/diagnostics interface.
+
+The system should support combining:
+
+GNSS
++
+Wheel encoders
++
+IMU
+
+for rover localization and odometry.
+
+Do not pretend this is active until the physical hardware is connected.
+
+If hardware is unavailable, show:
+
+NOT VERIFIED
+
+or
+
+SIMULATION
+
+rather than fake live values.
+
+==================================================
+5. NAVIGATION / ODOMETRY
+==================================================
+
+Create a Navigation/Odometry layer.
+
+Architecture:
+
+GNSS
+   |
+Wheel Encoders
+   |
+IMU
+   |
+   v
+Navigation / Odometry
+   |
+   +----> Path Map
+   +----> Telemetry
+   +----> Rover position
+   +----> Autonomous navigation
+
+Keep the architecture modular.
+
+The navigation system should eventually be capable of determining:
+
+- Current position
+- Heading
+- Distance travelled
+- Estimated rover movement
+- Path history
+
+==================================================
+6. PATH MAP UPGRADE
+==================================================
+
+The existing Path Map should be upgraded.
+
+Keep all existing features:
+
+- Live rover position
+- Heading
+- Grid
+- Path
+- Waypoints
+- Recording
+- Distance
+- Recording duration
+- Follow rover
+- Pan
+- Zoom
+- Reset
+- Scale
+- Replay
+- Replay animation
+- JSON export/import
+
+Add:
+
+- GNSS position
+- Encoder odometry
+- IMU heading
+- Actual travelled distance
+- Live breadcrumb trail
+- Archaeological site markers
+- Artifact markers
+- Hazard markers
+- Detection markers
+- Position accuracy indicator
+
+Visually distinguish:
+
+1. Recorded rover path
+2. Planned/autonomous path
+3. Replay path
+
+Do not confuse these.
+
+When an artifact is detected by AI, the system should be capable of associating the detection with the rover's current GNSS/map position.
+
+Example:
+
+Artifact detected
+      |
+      v
+Save detection
+      |
+      +----> artifact type
+      +----> confidence
+      +----> timestamp
+      +----> rover coordinates
+      |
+      v
+Add marker to map
+
+==================================================
+7. LIDAR + ULTRASONIC OBSTACLE SYSTEM
+==================================================
+
+The existing LIDAR and ultrasonic systems should be integrated into a common obstacle-awareness layer.
+
+Current LIDAR features must remain:
+
+- Radar display
+- Distance points
+- Quality-based rendering
+- Close-object warnings
+- Full Path Map LIDAR view
+
+Current ultrasonic features must remain:
+
+- Distance
+- Progress bars
+- Trigger states
+- Obstacle warnings
+
+Create an Obstacle Manager abstraction.
+
+Architecture:
+
+LIDAR
+   |
+Ultrasonic
+   |
+Future sensors
+   |
+   v
+Obstacle Manager
+   |
+   +----> Dashboard warning
+   +----> Map
+   +----> Autonomous navigation
+   +----> Telemetry
+
+Show:
+
+- Distance
+- Direction
+- Sensor source
+- Warning level
+
+Do not invent sensor readings.
+
+==================================================
+8. AI DETECTION SYSTEM
+==================================================
+
+Keep the existing AI detection panel.
+
+Improve it so detected objects can contain:
+
+- Object/artifact type
+- Bounding box
+- Confidence
+- Timestamp
+- Camera frame information
+- Rover GNSS position
+- Map location
+
+When an artifact is detected:
+
+AI Detection
+   |
+   +----> Bounding box
+   +----> Detection information
+   +----> Save event
+   +----> GNSS location
+   +----> Map marker
+
+Add configurable:
+
+- Confidence threshold
+- Model name
+- Detection status
+
+Do not claim that a real AI model is running unless the backend is actually connected.
+
+If AI is simulated, label it:
+
+SIMULATION
+
+==================================================
+9. VR MODE
+==================================================
+
+Improve the existing VR mode for the actual driver setup.
+
+The driver uses a phone inserted into a VR box/headset.
+
+The VR page should provide:
+
+- Fullscreen camera
+- Clean C50 feed
+- Low latency
+- Camera pan/tilt commands
+- Center camera
+- Connection status
+- Minimal UI overlay
+
+The driver must NOT see:
+
+- AI bounding boxes
+- AI annotations
+- Copilot information
+
+The VR feed should remain as close as possible to the original camera feed.
+
+==================================================
+10. ROBOTIC ARM SYSTEM
+==================================================
+
+The new robotic arm is separate from rover driving.
+
+The planned arm has approximately 5 controllable functions:
+
+1. Base
+2. Shoulder
+3. Elbow
+4. Wrist
+5. Gripper
+
+Keep the arm software configurable because the final mechanical design may change.
+
+The existing dedicated Arm Control page should be retained and improved.
+
+==================================================
+11. ARM CONTROL
+==================================================
+
+Keep:
+
+- Base controls
+- Shoulder controls
+- Elbow controls
+- Wrist controls
+- Gripper controls
+- Hold-to-move
+- Pointer events
+- Touchscreen support
+- Keyboard support
+- Precision mode
+- Normal mode
+- Joint limits
+- Commanded position display
+- A9 camera
+- Connection status
+
+Movement buttons must behave as:
+
+PRESS AND HOLD = MOVE
+
+RELEASE = IMMEDIATE STOP
+
+Never allow a button press to accidentally cause unlimited movement.
+
+==================================================
+12. ARM COMMUNICATION
+==================================================
+
+The intended architecture is:
+
+Arm Operator Webpage
+        |
+        v
+WebSocket
+        |
+        v
+ESP32
+        |
+        v
+PCA9685
+        |
+        v
+Arm Servos
+
+The browser must NOT directly access GPIO or PCA9685.
+
+Create a hardware abstraction layer.
+
+Suggested abstractions:
+
+ArmController
+ArmCommand
+ArmJoint
+ConnectionManager
+HardwareState
+
+Commands should resemble:
+
+{
+  "type": "arm_move",
+  "payload": {
+    "joint": "base",
+    "direction": 1,
+    "speed": 25
+  }
+}
+
+Stop:
+
+{
+  "type": "arm_stop",
+  "payload": {
+    "joint": "base"
+  }
+}
+
+Emergency stop:
+
+{
+  "type": "arm_emergency_stop"
+}
+
+Keep this protocol easy to modify.
+
+==================================================
+13. ARM SAFETY
+==================================================
+
+Make the existing Emergency Stop functional in the software architecture.
+
+Add:
+
+EMERGENCY STOP
+
+When pressed:
+
+- Stop all arm movement
+- Block new movement commands
+- Show ARM STOPPED
+- Require ENABLE ARM to resume
+
+Add:
+
+ENABLE ARM
+
+Also implement a communication watchdog.
+
+If:
+
+- WebSocket connection is lost
+- Control heartbeat stops
+- Operator page becomes disconnected
+
+the system must stop sending movement commands.
+
+The ESP32 should eventually implement its own hardware-side watchdog.
+
+Do not pretend the hardware watchdog exists until it is implemented.
+
+==================================================
+14. ARM JOINT LIMITS
+==================================================
+
+Keep configurable:
+
+- Minimum angle
+- Maximum angle
+- Normal speed
+- Precision speed
+- Servo channel
+- Direction inversion
+
+Store configuration cleanly.
+
+Example:
+
+Base:
+channel: 0
+min: 0
+max: 180
+
+Shoulder:
+channel: 1
+...
+
+Do not hard-code these as final hardware values.
+
+Prevent commands outside configured limits.
+
+==================================================
+15. ARM POSITION DISPLAY
+==================================================
+
+Display:
+
+Base: ___°
+Shoulder: ___°
+Elbow: ___°
+Wrist: ___°
+Gripper: OPEN/CLOSED
+
+If actual servo feedback hardware does not exist:
+
+label these:
+
+COMMANDED POSITION
+
+Do NOT call them measured position.
+
+When real feedback hardware is eventually added, support:
+
+MEASURED POSITION
+
+==================================================
+16. ARM SIMULATION MODE
+==================================================
+
+Keep Simulation Mode.
+
+When Simulation Mode is ON:
+
+- No real hardware commands
+- Simulated arm movement
+- Simulated positions
+- UI behaves like real hardware
+
+When Simulation Mode is OFF:
+
+- Use real WebSocket/hardware communication
+
+Clearly display:
+
+SIMULATION MODE
+
+or
+
+REAL HARDWARE MODE
+
+This is critical for development and testing.
+
+==================================================
+17. HARDWARE DIAGNOSTICS PAGE
+==================================================
+
+Create a new Hardware Diagnostics page.
+
+Display:
+
+ESP32                 CONNECTED / DISCONNECTED / NOT VERIFIED
+TB6612FNG             NOT VERIFIED
+PCA9685                CONNECTED / NOT VERIFIED
+Wheel motors           NOT VERIFIED
+Wheel encoders         CONNECTED / NOT VERIFIED
+GNSS                   FIX / NO FIX / NOT VERIFIED
+IMU                    CONNECTED / NOT VERIFIED
+LIDAR                  CONNECTED / NOT VERIFIED
+Ultrasonic sensors     CONNECTED / NOT VERIFIED
+C50 camera             STREAMING / DISCONNECTED
+A9 camera              STREAMING / DISCONNECTED
+Robotic arm            READY / STOPPED / NOT VERIFIED
+
+Do not fabricate statuses.
+
+If no real hardware telemetry exists, display:
+
+NOT VERIFIED
+
+==================================================
+18. BATTERY MONITORING
+==================================================
+
+The rover uses separate power systems.
+
+Create a power/telemetry architecture that can eventually distinguish:
+
+ROVER BATTERY
+ARM BATTERY
+ESP32 POWER
+
+For each where hardware permits:
+
+- Voltage
+- Estimated percentage
+- Current
+- Low battery warning
+- Connection/status
+
+Do not fabricate battery voltage/current.
+
+If only an estimated battery percentage is available, label it appropriately.
+
+==================================================
+19. MAIN DASHBOARD IMPROVEMENTS
+==================================================
+
+Keep the existing Mission Control dashboard.
+
+Add compact status indicators for:
+
+- GNSS
+- Encoders
+- IMU
+- LIDAR
+- Ultrasonic
+- C50
+- A9
+- Arm
+- Battery
+- Network
+
+Do not overcrowd the main dashboard.
+
+Detailed information can remain on dedicated pages.
+
+==================================================
+20. AUTONOMOUS MODE
+==================================================
+
+Keep existing autonomous modes:
+
+- Exploring
+- Homing
+- Following
+- Patrolling
+
+Upgrade the architecture so autonomous navigation can eventually use:
+
+GNSS
++
+Encoders
++
+IMU
++
+LIDAR
++
+Ultrasonic
+
+However:
+
+DO NOT claim that these sensors are currently controlling autonomous navigation until the real hardware and algorithms are connected.
+
+Create clear states:
+
+SIMULATION
+READY
+ACTIVE
+NOT AVAILABLE
+
+==================================================
+21. CAMERA MANAGEMENT
+==================================================
+
+Keep existing Camera Management features:
+
+- Multiple camera slots
+- Grid
+- WiFi/MJPEG
+- Snapshot source
+- Bluetooth camera source
+- Add/remove
+- Rename
+- Stream URL
+- Fullscreen
+- Status
+- PTZ
+
+Add separate configuration for:
+
+MAIN C50 CAMERA
+
+and
+
+A9 ARM CAMERA
+
+Never accidentally use the A9 URL as the C50 URL.
+
+==================================================
+22. CONFIGURATION
+==================================================
+
+System Configuration should include:
+
+MAIN CAMERA
+- Camera source
+- IP
+- Port
+- Stream path
+- Manual URL
+
+A9 ARM CAMERA
+- A9 stream URL
+
+GNSS
+- Connection settings
+- Update rate where applicable
+
+ENCODERS
+- Wheel count
+- Encoder configuration
+
+ARM
+- Servo channels
+- Joint limits
+- Direction inversion
+- Speeds
+
+ESP32
+- IP
+- Port
+- WebSocket configuration
+
+Keep existing local persistence where appropriate.
+
+==================================================
+23. DATA ARCHITECTURE
+==================================================
+
+Create clear modular data structures for:
+
+RoverTelemetry
+GNSSData
+EncoderData
+IMUData
+LidarData
+UltrasonicData
+CameraStatus
+AIDetection
+ArmState
+ArmCommand
+BatteryStatus
+MissionData
+Waypoint
+Obstacle
+
+Do not mix unrelated telemetry into one huge object if avoidable.
+
+==================================================
+24. COMMUNICATION ARCHITECTURE
+==================================================
+
+The application should use:
+
+WebSocket
+for real-time control and telemetry.
+
+REST can remain as fallback for non-critical telemetry/configuration.
+
+Real-time control should use WebSocket.
+
+Potential architecture:
+
+ROVER
+ |
+ | WebSocket
+ v
+Backend / Control Server
+ |
+ +---- Pilot
+ |
+ +---- AI Co-pilot
+ |
+ +---- Arm Operator
+
+Make sure permissions are enforced server-side eventually.
+
+Do not rely only on browser-side hiding of buttons for security.
+
+==================================================
+25. AUTHENTICATION / SECURITY
+==================================================
+
+The current system does not have proper authentication.
+
+Do not suddenly introduce a complicated login system unless necessary.
+
+However, structure the application so server-side role validation can be added.
+
+Important:
+
+Pilot commands
+Arm commands
+Autonomous commands
+System configuration
+
+should eventually be validated by the backend.
+
+==================================================
+26. EMERGENCY STOP ARCHITECTURE
+==================================================
+
+There should be separate logical safety states:
+
+ROVER STOP
+ARM STOP
+SYSTEM STOP
+
+At minimum implement:
+
+ROVER EMERGENCY STOP
+ARM EMERGENCY STOP
+
+The Arm Emergency Stop must not accidentally stop unrelated UI systems.
+
+The Rover Emergency Stop must stop rover movement commands.
+
+Eventually hardware-level emergency stopping should be implemented on the ESP32.
+
+==================================================
+27. USER INTERFACE
+==================================================
+
+Keep the existing design language.
+
+The application should look like a professional robotics control station.
+
+Use:
+
+- Dark interface
+- Clear status indicators
+- Large camera feeds
+- Large control buttons
+- Clear warnings
+- Responsive design
+- Minimal unnecessary animation
+
+Do not make the UI look like a gaming website.
+
+==================================================
+28. IMPORTANT HARDWARE TRUTHFULNESS RULE
+==================================================
+
+This is extremely important.
+
+NEVER fake hardware telemetry.
+
+If hardware is not connected, say:
+
+NOT VERIFIED
+DISCONNECTED
+SIMULATION
+
+Do not display:
+
+"GNSS FIX"
+if no GNSS hardware is actually connected.
+
+Do not display:
+
+"ARM CONNECTED"
+if the ESP32 has not confirmed it.
+
+Do not display:
+
+"AI ACTIVE"
+if no real inference pipeline is running.
+
+The interface must distinguish:
+
+SIMULATION
+CONNECTED
+DISCONNECTED
+NOT VERIFIED
+ERROR
+
+==================================================
+29. TESTING
+==================================================
+
+Before connecting real hardware, ensure everything works in Simulation Mode.
+
+Create tests for:
+
+- Driving controls
+- Hold-to-drive
+- Emergency stop
+- Arm hold-to-move
+- Arm stop
+- Arm emergency stop
+- Joint limits
+- Precision mode
+- Keyboard controls
+- Touch controls
+- WebSocket disconnect
+- Watchdog timeout
+- GNSS simulation
+- Encoder simulation
+- LIDAR simulation
+- AI detection simulation
+- Map markers
+- Path recording
+- Replay
+- Role permissions
+
+==================================================
+30. DO NOT BREAK EXISTING FEATURES
+==================================================
+
+Before making changes:
+
+1. Inspect existing code.
+2. Identify current routes.
+3. Identify current components.
+4. Identify existing WebSocket implementation.
+5. Identify current telemetry structures.
+6. Identify camera implementation.
+7. Identify role/permission implementation.
+8. Identify existing Arm Control implementation.
+9. Reuse existing components where possible.
+
+Do not duplicate functionality unnecessarily.
+
+Do not remove working features.
+
+Do not rewrite the entire application just to add these changes.
+
+==================================================
+31. FINAL SOFTWARE ARCHITECTURE
+==================================================
+
+The final conceptual architecture should be:
+
+                    ROVER
+                      |
+        +-------------+-------------+
+        |             |             |
+       C50           A9          Sensors
+        |             |             |
+        |             |       +-----+-----+
+        |             |       |     |     |
+       GNSS       ARM SYSTEM  IMU  LIDAR Encoders
+        |             |       |     |     |
+        +-------------+-------+-----+-----+
+                      |
+                    ESP32
+                      |
+               Network/WebSocket
+                      |
+        +-------------+-------------+
+        |             |             |
+        v             v             v
+      PILOT       AI CO-PILOT   ARM OPERATOR
+        |             |             |
+    Clean C50      AI C50          A9
+       + VR       + GNSS         + Arm
+     Driving      + LIDAR        Control
+                  + Map
+                  + AI
+
+The Pilot must see the clean camera feed.
+
+The AI Co-pilot sees the AI-processed camera feed.
+
+The Arm Operator sees the A9 feed.
+
+These must remain separate.
+
+==================================================
+32. IMPLEMENTATION ORDER
+==================================================
+
+Do not implement everything at once.
+
+Work in this order:
+
+PHASE 1
+Inspect existing application and create a safe backup/checkpoint.
+
+PHASE 2
+Implement the new three-role permission structure.
+
+PHASE 3
+Improve Arm Control page and simulation.
+
+PHASE 4
+Implement robust WebSocket arm command architecture.
+
+PHASE 5
+Add GNSS data structures and UI.
+
+PHASE 6
+Add encoder data structures and UI.
+
+PHASE 7
+Upgrade Path Map with GNSS + odometry.
+
+PHASE 8
+Integrate LIDAR + ultrasonic into Obstacle Manager.
+
+PHASE 9
+Improve AI detection events and artifact map markers.
+
+PHASE 10
+Improve C50 clean-feed / AI-feed separation.
+
+PHASE 11
+Improve VR driver interface.
+
+PHASE 12
+Add Hardware Diagnostics.
+
+PHASE 13
+Improve battery/power monitoring.
+
+PHASE 14
+Prepare real ESP32 hardware integration.
+
+After each phase:
+- Test the application.
+- Fix errors.
+- Do not proceed if the previous phase broke existing functionality.
+
+==================================================
+FINAL REQUEST
+==================================================
+
+Implement this upgrade carefully in my EXISTING Replit project.
+
+First inspect the existing project and give me a short implementation plan based on what is already present.
+
+Then implement the changes incrementally.
+
+Do not pretend physical hardware is connected.
+
+Keep Simulation Mode available.
+
+After completing each major phase, explain:
+
+1. What was changed.
+2. Which files were changed.
+3. What existing features were preserved.
+4. What is simulated.
+5. What still requires physical hardware.
+6. How I can test it.
+
+The final application should be ready for gradual connection to the actual WRO rover hardware.

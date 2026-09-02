@@ -10,6 +10,7 @@ import Settings from "@/pages/settings";
 import MapPage from "@/pages/map";
 import CamerasPage from "@/pages/cameras";
 import RoboticArmOperator from "@/pages/robotic-arm-operator";
+import HardwareDiagnostics from "@/pages/hardware-diagnostics";
 import { useOperatorRole } from "@/hooks/use-operator-role";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         {permissions.hasRole && permissions.canConfigure ? <Settings /> : <Redirect to="/" />}
+      </Route>
+      <Route path="/diagnostics">
+        {permissions.hasRole ? <HardwareDiagnostics /> : <Redirect to="/" />}
       </Route>
       <Route component={NotFound} />
     </Switch>

@@ -29,6 +29,7 @@ import {
 import { ArmVisualizer3D } from "@/components/arm-visualizer-3d";
 import { LidarVisualizer3D } from "@/components/lidar-visualizer-3d";
 import { useProximityAlarm } from "@/hooks/use-proximity-alarm";
+import { useObstacleManager } from "@/hooks/use-obstacle-manager";
 import { ArtifactDetection, type ArtifactMarker } from "@/components/artifact-detection";
 import { VrMode } from "@/components/vr-mode";
 import { MissionRecorder } from "@/components/mission-recorder";
@@ -76,9 +77,13 @@ export default function Dashboard() {
   const [alarmThreshold, setAlarmThreshold] = useState(600);
   const [alarmEnabled, setAlarmEnabled] = useState(true);
   const { alarming, level: alarmLevel, closestMm } = useProximityAlarm(lidarData, alarmThreshold, alarmEnabled);
+  const { obstacles: managedObstacles } = useObstacleManager(lidarData, telemetry, alarmThreshold);
 
   // ── Operator role ─────────────────────────────────────────────────────────────
-  const { operator, hasRole, assignRole, canDrive, canArm, canAutonom, canConfigure, canEditMap, currentMeta } = useOperatorRole();
+  const {
+    operator, hasRole, assignRole, canDrive, canArm, canAutonom, canConfigure,
+    canEditMap, canViewMap, canUseAi, canUseGnss, canUseVr, currentMeta,
+  } = useOperatorRole();
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showAutoPanel, setShowAutoPanel] = useState(false);
   const [showVr, setShowVr] = useState(false);
@@ -86,6 +91,17 @@ export default function Dashboard() {
   const [showGps, setShowGps] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [artifactMarkers, setArtifactMarkers] = useState<ArtifactMarker[]>([]);
+
+  useEffect(() => {
+    setRightTab(canArm ? "arm" : "sensors");
+  }, [canArm]);
+
+  useEffect(() => {
+    if (!canUseAi) setShowArtifacts(false);
+    if (!canUseGnss) setShowGps(false);
+    if (!canUseVr) setShowVr(false);
+    if (operator?.role === "arm-operator") setShowMission(false);
+  }, [canUseAi, canUseGnss, canUseVr, operator?.role]);
 
   // ── Home position ─────────────────────────────────────────────────────────────
   const homeQuery = useGetHomePosition({ query: { refetchInterval: 5000 } as never });
@@ -386,6 +402,27 @@ export default function Dashboard() {
             {rover?.direction ?? "idle"}
           </Badge>
 
+          {/* Compact hardware truth indicators. Detailed state lives on Diagnostics. */}
+          <div className="hidden xl:flex items-center gap-1.5 px-2 py-1.5 border border-border rounded shrink-0 text-[9px] font-bold tracking-wider">
+            <span className="text-muted-foreground/60">GNSS</span><span className={canUseGnss ? "text-amber-300" : "text-amber-300/60"}>{canUseGnss ? "SIM" : "NV"}</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">ENC</span><span className="text-amber-300/60">NV</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">IMU</span><span className="text-amber-300/60">NV</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">LIDAR</span><span className={canViewMap ? "text-amber-300" : "text-amber-300/60"}>{canViewMap ? "SIM" : "NV"}</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">US</span><span className={canViewMap ? "text-amber-300" : "text-amber-300/60"}>{canViewMap ? "SIM" : "NV"}</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">C50</span><span className={operator?.role === "co-pilot" ? "text-amber-300" : operator?.role === "pilot" ? "text-green-300" : "text-muted-foreground/40"}>{operator?.role === "co-pilot" ? "AI" : operator?.role === "pilot" ? "CLEAN" : "HIDE"}</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">A9</span><span className={canArm ? "text-cyan-300" : "text-muted-foreground/40"}>{canArm ? "ARM" : "NV"}</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">ARM</span><span className={canArm ? "text-amber-300" : "text-muted-foreground/40"}>{canArm ? "SIM" : "LOCK"}</span>
+            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground/60">OBS</span><span className={alarming ? "text-red-300" : "text-amber-300"}>{managedObstacles.length}</span>
+          </div>
+
           {/* BLE */}
           {canDrive && <div className="flex items-center gap-1.5 px-3 py-2 border border-border rounded shrink-0 min-h-[40px]">
             {btStatus === "connected" ? (
@@ -461,9 +498,9 @@ export default function Dashboard() {
                       <span className="text-xs text-muted-foreground/60 tracking-widest uppercase">Switch Role</span>
                     </div>
                     {([
-                      { role: "pilot" as const,    label: "PILOT",     color: "#00e676", desc: "Full command authority",    icon: "🛡" },
-                      { role: "co-pilot" as const, label: "CO-PILOT",  color: "#ffb000", desc: "Drive & sensor monitoring", icon: "⚙" },
-                      { role: "observer" as const, label: "OBSERVER",  color: "#888",    desc: "Read-only live feed",       icon: "👁" },
+                      { role: "pilot" as const,    label: "PILOT",     color: "#00e676", desc: "Drive, clean C50, VR & autonomous", icon: "🛡" },
+                      { role: "co-pilot" as const, label: "AI CO-PILOT",  color: "#ffb000", desc: "AI, GNSS, map & replay — no drive", icon: "⚙" },
+                      { role: "arm-operator" as const, label: "ARM OPERATOR", color: "#00d9ff", desc: "Dedicated arm control & A9 camera", icon: "⊕" },
                     ]).map((r) => {
                       const active = operator?.role === r.role;
                       return (
@@ -492,22 +529,22 @@ export default function Dashboard() {
             </div>
 
             {/* Feature panel buttons */}
-            <button onClick={() => setShowArtifacts(true)}
+            {canUseAi && <button onClick={() => setShowArtifacts(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-2 border border-cyan-500/40 text-cyan-400 rounded hover:bg-cyan-500/10 shrink-0 transition-colors min-h-[40px]">
               <Scan className="w-4 h-4" /> AI
-            </button>
-            <button onClick={() => setShowGps(true)}
+            </button>}
+            {canUseGnss && <button onClick={() => setShowGps(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-2 border border-green-500/40 text-green-400 rounded hover:bg-green-500/10 shrink-0 transition-colors min-h-[40px]">
               <MapPin className="w-4 h-4" /> GPS
-            </button>
-            <button onClick={() => setShowMission(true)}
+            </button>}
+            {operator?.role !== "arm-operator" && <button onClick={() => setShowMission(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-2 border border-purple-500/40 text-purple-400 rounded hover:bg-purple-500/10 shrink-0 transition-colors min-h-[40px]">
               <Film className="w-4 h-4" /> MISSION
-            </button>
-            <button onClick={() => setShowVr(true)}
+            </button>}
+            {canUseVr && <button onClick={() => setShowVr(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-2 border border-blue-500/40 text-blue-400 rounded hover:bg-blue-500/10 shrink-0 transition-colors min-h-[40px]">
               <Glasses className="w-4 h-4" /> VR
-            </button>
+            </button>}
 
             {canConfigure && (
               <a href="/settings" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary px-3 py-2 border border-border rounded min-h-[40px]">
@@ -524,8 +561,8 @@ export default function Dashboard() {
           <div className="w-[300px] shrink-0 flex flex-col divide-y divide-border overflow-y-auto">
 
             {/* Primary camera — size depends on role */}
-            {operator?.role === "observer" ? (
-              /* Observer: left panel shows telemetry — camera is in center panel */
+            {operator?.role === "arm-operator" ? (
+              /* Arm operator: read-only telemetry/camera monitoring plus arm access */
               <div className="flex flex-col divide-y divide-border">
                 {/* Telemetry arc gauges */}
                 <div className="p-3 shrink-0">
@@ -564,37 +601,32 @@ export default function Dashboard() {
                     ))}
                   </div>
                 </div>
-                {/* Extra camera feeds for observer */}
-                {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
-                  <div key={f.id} className="relative bg-black shrink-0" style={{ height: 110 }}>
-                    <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
-                    <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
-                  </div>
-                ) : null)}
+                <div className="m-3 p-3 border border-cyan-500/30 rounded bg-cyan-500/5">
+                  <div className="text-[10px] font-bold text-cyan-300 tracking-wider">A9 CAMERA ASSIGNED</div>
+                  <div className="text-[9px] text-muted-foreground mt-1">Open ARM CONTROL for the dedicated A9 view. C50 feeds are hidden in this mode.</div>
+                </div>
               </div>
             ) : operator?.role === "co-pilot" ? (
-              /* Co-pilot: taller camera, joystick beneath */
+              /* AI co-pilot: processed C50 view, no drive controls */
               <>
-                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} tall />
+                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} tall allowPtz={false} />
+                <div className="px-3 py-2 border-b border-border text-[9px] font-bold tracking-wider text-amber-300">
+                  C50 / AI PROCESSING FEED · SIMULATION
+                </div>
                 {cameraFeeds.slice(0, 1).map((f) => f.url && f.status === "connected" ? (
                   <div key={f.id} className="relative bg-black shrink-0" style={{ height: 100 }}>
                     <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
                     <img src={f.source === "snapshot" && f.snapshotDataUrl ? f.snapshotDataUrl : f.url} alt={f.label} className="w-full h-full object-cover" />
                   </div>
                 ) : null)}
-                {/* Joystick for co-pilot */}
-                <div className="p-4 shrink-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Drive Control</span>
-                    <button onClick={() => handleDrive("stop")} className="text-xs border-2 border-destructive text-destructive hover:bg-destructive/20 px-4 py-2 rounded font-bold min-h-[40px] active:bg-destructive active:text-white transition-colors">⏹ STOP</button>
-                  </div>
-                  <Joystick onCommand={(cmd) => handleDrive(cmd)} activeKey={activeKey} size={200} />
+                <div className="p-4 shrink-0 text-center text-[10px] text-muted-foreground/70 border-t border-border">
+                  DRIVE INPUT LOCKED · AI CO-PILOT IS READ-ONLY
                 </div>
               </>
             ) : (
               /* Pilot: standard camera + joystick */
               <>
-                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} />
+                <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} allowPtz={canDrive} />
                 {cameraFeeds.slice(0, 2).map((f) => f.url && f.status === "connected" ? (
                   <div key={f.id} className="relative bg-black shrink-0" style={{ aspectRatio: "16/9" }}>
                     <span className="absolute top-1 left-1 z-10 text-[8px] text-primary/60 font-bold bg-black/60 px-1">{f.label}</span>
@@ -747,8 +779,8 @@ export default function Dashboard() {
               <div className="flex divide-x divide-border">
                 {([
                   { role: "pilot"    as const, label: "PILOT",    color: "#00e676", icon: "🛡" },
-                  { role: "co-pilot" as const, label: "CO-PILOT", color: "#ffb000", icon: "⚙" },
-                  { role: "observer" as const, label: "OBSERVER", color: "#888",    icon: "👁" },
+                      { role: "co-pilot" as const, label: "AI CO-PILOT", color: "#ffb000", icon: "⚙" },
+                  { role: "arm-operator" as const, label: "ARM OPERATOR", color: "#00d9ff", icon: "⊕" },
                 ] as const).map((r) => {
                   const active = operator?.role === r.role;
                   return (
@@ -774,25 +806,19 @@ export default function Dashboard() {
 
           {/* ── CENTER PANEL (flex-1) ──────────────────────────────────────── */}
           <div className="flex-1 flex flex-col min-w-0">
-            {/* Center tab bar — observer sees "LIVE FEED" header instead */}
-            {operator?.role === "observer" ? (
-              <div className="flex items-center gap-3 px-4 h-12 border-b border-border shrink-0">
-                <Video className="w-4 h-4 text-primary/70" />
-                <span className="text-xs font-bold tracking-widest text-primary/80 font-mono">LIVE FEED</span>
-                <span className="ml-auto text-[9px] text-muted-foreground/50 font-mono tracking-wider">CAM 01 · READ-ONLY</span>
-              </div>
-            ) : (
+            {
               <div className="flex gap-2 px-3 h-12 border-b border-border shrink-0 font-medium justify-between items-center flex-row">
-                <button onClick={() => setCenterView("map")}
+                {canViewMap && <button onClick={() => setCenterView("map")}
                   className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${centerView === "map" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
                   <Map className="w-4 h-4" /> MAP
-                </button>
-                <button onClick={() => setCenterView("lidar")}
+                </button>}
+                {canViewMap && <button onClick={() => setCenterView("lidar")}
                   className={`flex items-center gap-2 px-4 py-2 rounded text-xs font-bold transition-colors min-h-[40px] ${alarming
                     ? alarmLevel === "critical" ? "bg-red-500/20 text-red-400 border border-red-500/70" : "bg-orange-500/10 text-orange-400 border border-orange-500/50"
                     : centerView === "lidar" ? "bg-primary/20 text-primary border border-primary/50" : "text-muted-foreground hover:text-foreground"}`}>
                   <Target className="w-4 h-4" /> LIDAR {alarming && <span className="animate-pulse">⚠</span>}
-                </button>
+                </button>}
+                {!canViewMap && <span className="px-2 text-[10px] font-bold tracking-wider text-cyan-300">ARM CONTROL MODE · NAVIGATION HIDDEN</span>}
                 {centerView === "lidar" && (
                   <div className="ml-auto flex items-center gap-2">
                     <button
@@ -809,7 +835,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 )}
-                {centerView === "map" && (
+                {canViewMap && centerView === "map" && (
                   <div className="ml-auto flex items-center gap-1.5">
                     <button onClick={() => setMapScale((s) => Math.min(200, s * 1.25))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomIn className="w-4 h-4" /></button>
                     <button onClick={() => setMapScale((s) => Math.max(5, s * 0.8))} className="p-2.5 border border-border rounded hover:border-primary hover:text-primary text-muted-foreground min-h-[40px]"><ZoomOut className="w-4 h-4" /></button>
@@ -820,7 +846,7 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-            )}
+            }
 
             {/* Center view */}
             <div className={`flex-1 relative min-h-0 bg-[#060606] transition-all ${alarming ? alarmLevel === "critical" ? "ring-2 ring-inset ring-red-500/80" : "ring-2 ring-inset ring-orange-500/50" : ""}`}>
@@ -829,20 +855,22 @@ export default function Dashboard() {
                 <div className={`absolute inset-0 pointer-events-none z-10 animate-pulse
                   ${alarmLevel === "critical" ? "bg-red-500/8" : "bg-orange-500/5"}`} />
               )}
-              {/* OBSERVER: full-size camera feed in center */}
-              {operator?.role === "observer" && (
-                <div className="absolute inset-0 z-10">
-                  <DashCamWidget url={primaryCameraUrl} camError={camError} onError={() => setCamError(true)} onLoad={() => setCamError(false)} grow />
-                </div>
-              )}
-              {/* MAP — always rendered so canvas ref stays alive; hidden for observer */}
+               {!canViewMap && (
+                 <div className="absolute inset-0 flex items-center justify-center p-8">
+                   <div className="max-w-sm text-center border border-cyan-500/30 rounded-lg p-6 bg-cyan-500/5">
+                     <Crosshair className="w-8 h-8 mx-auto mb-3 text-cyan-300" />
+                     <div className="text-sm font-bold tracking-wider text-cyan-300">ARM OPERATOR WORKSPACE</div>
+                     <p className="text-[10px] text-muted-foreground mt-2">Driving, autonomous navigation, maps and LIDAR are unavailable in this role. Use ARM CONTROL for A9 and manipulator operation.</p>
+                   </div>
+                 </div>
+               )}
+               {/* MAP — always rendered so canvas ref stays alive */}
               <div ref={mapContainerRef}
-                className={`absolute inset-0 cursor-crosshair ${operator?.role === "observer" || centerView !== "map" ? "hidden" : ""}`}
+                className={`absolute inset-0 cursor-crosshair ${centerView !== "map" ? "hidden" : ""}`}
                 onMouseDown={onMapMouseDown} onMouseMove={onMapMouseMove} onMouseUp={onMapMouseUp} onMouseLeave={onMapMouseUp} onWheel={onMapWheel}>
                 <canvas ref={mapCanvasRef} className="w-full h-full" />
               </div>
-              {/* LIDAR 3D — hidden for observer */}
-              <div className={`absolute inset-0 ${operator?.role === "observer" || centerView !== "lidar" ? "hidden" : ""}`}>
+               <div className={`absolute inset-0 ${!canViewMap || centerView !== "lidar" ? "hidden" : ""}`}>
                 <LidarVisualizer3D lidarData={lidarData} className="w-full h-full" />
               </div>
             </div>
@@ -852,7 +880,7 @@ export default function Dashboard() {
           <div className="w-[280px] shrink-0 flex flex-col divide-y divide-border">
             {/* Tab bar */}
             <div className="flex h-12 shrink-0">
-              {(["sensors", "arm"] as RightTab[]).map((tab) => (
+              {((canArm ? ["arm"] : ["sensors"]) as RightTab[]).map((tab) => (
                 <button key={tab} onClick={() => setRightTab(tab)}
                   className={`flex-1 text-xs font-bold uppercase tracking-wider transition-colors ${rightTab === tab ? "bg-primary/15 text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"}`}>
                   {tab === "sensors" ? "SENSORS" : "ARM"}
@@ -1037,11 +1065,13 @@ export default function Dashboard() {
           }}
         />
       )}
-      {/* ── Observer overlay (no commands) ───────────────────────────────── */}
+      {/* ── Read-only rover overlay ───────────────────────────────────────── */}
       {hasRole && !canDrive && !canAutonom && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-4 py-2 bg-black/80 border border-border rounded-full font-mono backdrop-blur-sm pointer-events-none">
           <Eye className="w-3 h-3 text-muted-foreground" />
-          <span className="text-[10px] text-muted-foreground">OBSERVER MODE — Commands disabled</span>
+          <span className="text-[10px] text-muted-foreground">
+            {operator?.role === "co-pilot" ? "AI CO-PILOT MODE — Drive and arm commands disabled" : "ARM OPERATOR MODE — Drive and autonomous commands disabled"}
+          </span>
         </div>
       )}
     </>
@@ -1062,7 +1092,7 @@ function DKey({ active, onDown, onUp, label }: { active: boolean; onDown: () => 
 }
 
 // ── Dashboard camera widget with PTZ overlay ─────────────────────────────────
-function DashCamWidget({ url, camError, onError, onLoad, grow, tall }: { url: string; camError: boolean; onError: () => void; onLoad: () => void; grow?: boolean; tall?: boolean }) {
+function DashCamWidget({ url, camError, onError, onLoad, grow, tall, allowPtz = true }: { url: string; camError: boolean; onError: () => void; onLoad: () => void; grow?: boolean; tall?: boolean; allowPtz?: boolean }) {
   const [showPtz, setShowPtz] = useState(false);
   const [pan, setPan] = useState(0);
   const [tilt, setTilt] = useState(0);
@@ -1088,10 +1118,10 @@ function DashCamWidget({ url, camError, onError, onLoad, grow, tall }: { url: st
           : <span className="px-1.5 py-0.5 bg-green-900/40 border border-green-500/40 text-green-400 text-[9px]">LIVE</span>}
       </div>
       {/* PTZ toggle */}
-      <button
+      {allowPtz && <button
         onClick={() => setShowPtz((v) => !v)}
         className={`absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 text-[8px] font-bold border rounded transition-colors ${showPtz ? "bg-cyan-500/20 border-cyan-500/60 text-cyan-400" : "bg-black/60 border-border text-muted-foreground/50 hover:text-cyan-400 hover:border-cyan-500/30 opacity-0 group-hover:opacity-100"}`}
-      >PTZ</button>
+      >PTZ</button>}
       {/* Image with simulated PTZ transform */}
       <div className="absolute inset-0" style={{ transform: `scale(${zoom}) translate(${-pan * 0.2}%, ${tilt * 0.2}%)`, transition: "transform 0.15s ease" }}>
         {url && !camError
@@ -1106,7 +1136,7 @@ function DashCamWidget({ url, camError, onError, onLoad, grow, tall }: { url: st
       <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-primary/30 pointer-events-none" />
       <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-primary/30 pointer-events-none" />
       {/* PTZ D-pad overlay */}
-      {showPtz && (
+      {allowPtz && showPtz && (
         <div className="absolute bottom-1.5 right-1.5 z-10 bg-black/75 border border-cyan-500/20 rounded p-1.5 backdrop-blur-sm">
           <div className="grid grid-cols-3 gap-0.5 w-16 mb-1">
             <div />
