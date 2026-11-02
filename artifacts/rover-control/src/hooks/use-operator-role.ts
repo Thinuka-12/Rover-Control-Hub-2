@@ -122,6 +122,7 @@ export function useOperatorRole() {
     canUseAi: role === "co-pilot",
     canUseGnss: role === "co-pilot",
     canUseVr: role === "pilot",
+    canManageArtifacts: role === "co-pilot",
     isArmOperator: role === "arm-operator",
   };
 }

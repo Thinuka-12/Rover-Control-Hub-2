@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetTelemetry } from "@workspace/api-client-react";
-import { Activity, Settings, Navigation, Crosshair, Map, Camera, Shield, Cpu, ChevronDown } from "lucide-react";
+import { Activity, Settings, Navigation, Crosshair, Map, Camera, Shield, Cpu, ChevronDown, Archive } from "lucide-react";
 import { useOperatorRole } from "@/hooks/use-operator-role";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -13,7 +13,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const telemetry = useGetTelemetry({ query: { refetchInterval: 500 } as never });
   const isConnected = telemetry.data?.rover?.connected ?? false;
-  const { operator, hasRole, assignRole, canArm, canConfigure, canViewCameras, canViewMap, currentMeta } = useOperatorRole();
+  const { operator, hasRole, assignRole, canArm, canConfigure, canViewCameras, canViewMap, canManageArtifacts, currentMeta } = useOperatorRole();
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   const roleOptions = [
@@ -28,6 +28,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/arm-operator", label: "ARM CONTROL", icon: Crosshair, visible: hasRole && canArm },
     { href: "/cameras", label: "CAMERAS", icon: Camera, visible: hasRole && canViewCameras },
     { href: "/map", label: "PATH MAP", icon: Map, visible: hasRole && canViewMap },
+    { href: "/artifacts", label: "ARTIFACTS", icon: Archive, visible: hasRole && canManageArtifacts },
     { href: "/settings", label: "CONFIG", icon: Settings, visible: hasRole && canConfigure },
     { href: "/diagnostics", label: "DIAGNOSTICS", icon: Activity, visible: hasRole },
   ].filter((item) => item.visible !== false);
